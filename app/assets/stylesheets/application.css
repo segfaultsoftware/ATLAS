@@ -1,0 +1,88 @@
+/*
+ * This is a manifest file that'll be compiled into application.css.
+ *
+ * With Propshaft, assets are served efficiently without preprocessing steps. You can still include
+ * application-wide styles in this file, but keep in mind that CSS precedence will follow the standard
+ * cascading order, meaning styles declared later in the document or manifest will override earlier ones,
+ * depending on specificity.
+ *
+ * Consider organizing styles into separate files for maintainability.
+ */
+
+:root {
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #181818;
+  color: #f4f4f4;
+}
+
+.status-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.08), transparent 28rem),
+    linear-gradient(145deg, #242424, #0d0d0d 68%);
+}
+
+.status-thumb {
+  width: min(58vmin, 26rem);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: clamp(8rem, 36vmin, 22rem);
+  line-height: 1;
+  padding: 0;
+  transform-origin: center;
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+.status-thumb:hover,
+.status-thumb:focus-visible {
+  filter: drop-shadow(0 1.5rem 2.5rem rgba(0, 0, 0, 0.45));
+  outline: none;
+  transform: scale(1.04);
+}
+
+.status-thumb.is-spinning {
+  animation: status-thumb-spin 1s ease-in-out;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes status-thumb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

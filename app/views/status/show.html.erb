@@ -1,0 +1,15 @@
+<% content_for :title, "ATLAS Status" %>
+
+<main class="status-page" aria-labelledby="status-title">
+  <h1 id="status-title" class="visually-hidden">ATLAS status</h1>
+
+  <button
+    class="status-indicator"
+    type="button"
+    aria-label="ATLAS is up"
+    data-controller="status-indicator"
+    data-action="click->status-indicator#spin animationend->status-indicator#reset"
+  >
+    👍
+  </button>
+</main>

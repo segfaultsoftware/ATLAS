@@ -1,0 +1,192 @@
+/*
+ * This is a manifest file that'll be compiled into application.css.
+ *
+ * With Propshaft, assets are served efficiently without preprocessing steps. You can still include
+ * application-wide styles in this file, but keep in mind that CSS precedence will follow the standard
+ * cascading order, meaning styles declared later in the document or manifest will override earlier ones,
+ * depending on specificity.
+ *
+ * Consider organizing styles into separate files for maintainability.
+ */
+
+:root {
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #181818;
+  color: #f4f4f4;
+}
+
+.landing-page {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(229, 184, 91, 0.18), transparent 36rem),
+    linear-gradient(160deg, #191919 0%, #111 62%, #242018 100%);
+  display: flex;
+  min-height: 100vh;
+  padding: clamp(2rem, 8vw, 7rem);
+}
+
+.landing-intro {
+  max-width: 48rem;
+}
+
+.landing-kicker {
+  color: #e5b85b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+}
+
+.landing-intro h1 {
+  font-size: clamp(4rem, 14vw, 9rem);
+  line-height: 0.9;
+  margin: 0;
+}
+
+.landing-copy {
+  color: #d9d2c0;
+  font-size: clamp(1.15rem, 3vw, 1.8rem);
+  line-height: 1.4;
+  margin: 1.5rem 0 0;
+  max-width: 38rem;
+}
+
+.srd-page {
+  background: #f5f1e8;
+  color: #191714;
+  min-height: 100vh;
+  padding: clamp(1.5rem, 5vw, 4rem);
+}
+
+.srd-document {
+  line-height: 1.65;
+  margin: 0 auto;
+  max-width: 48rem;
+}
+
+.srd-document h1,
+.srd-document h2,
+.srd-document h3 {
+  color: #191714;
+  line-height: 1.1;
+}
+
+.srd-document h1 {
+  font-size: clamp(2.75rem, 8vw, 5.5rem);
+  margin: 0 0 1.25rem;
+}
+
+.srd-document h2 {
+  border-top: 1px solid #d4c7ad;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  margin: 3rem 0 1rem;
+  padding-top: 1.5rem;
+}
+
+.srd-document p,
+.srd-document li {
+  font-size: 1.05rem;
+}
+
+.srd-document code {
+  background: #e8ddc8;
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+}
+
+.srd-document pre {
+  background: #191714;
+  color: #f5f1e8;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.srd-document table {
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  width: 100%;
+}
+
+.srd-document th,
+.srd-document td {
+  border-bottom: 1px solid #d4c7ad;
+  padding: 0.65rem;
+  text-align: left;
+}
+
+.srd-document th {
+  background: #e8ddc8;
+}
+
+.status-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.08), transparent 28rem),
+    linear-gradient(145deg, #242424, #0d0d0d 68%);
+}
+
+.status-indicator {
+  width: min(58vmin, 26rem);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: clamp(8rem, 36vmin, 22rem);
+  line-height: 1;
+  padding: 0;
+  transform-origin: center;
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+.status-indicator:hover,
+.status-indicator:focus-visible {
+  filter: drop-shadow(0 1.5rem 2.5rem rgba(0, 0, 0, 0.45));
+  outline: none;
+  transform: scale(1.04);
+}
+
+.status-indicator.is-spinning {
+  animation: status-indicator-spin 1s ease-in-out;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes status-indicator-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

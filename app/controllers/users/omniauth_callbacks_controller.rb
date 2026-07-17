@@ -3,7 +3,7 @@ module Users
     include Devise::Controllers::Rememberable
 
     def google_oauth2
-      user = User.from_google_oauth(request.env.fetch("omniauth.auth"))
+      user = User.find_or_create_from_google_oauth!(request.env.fetch("omniauth.auth"))
 
       sign_in(user)
       remember_me(user)

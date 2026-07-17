@@ -16,7 +16,7 @@ RSpec.describe "Google authentication", type: :request do
     OmniAuth.config.mock_auth[:google_oauth2] = auth_hash
   end
 
-  def start_google_login
+  def complete_google_login
     post "/users/auth/google_oauth2"
     follow_redirect!
   end
@@ -45,7 +45,7 @@ RSpec.describe "Google authentication", type: :request do
 
   it "creates a Google auth identity and remembers the signed-in session" do
     expect do
-      start_google_login
+      complete_google_login
     end.to change(User, :count).by(1)
 
     user = User.last
@@ -73,7 +73,7 @@ RSpec.describe "Google authentication", type: :request do
     )
 
     expect do
-      start_google_login
+      complete_google_login
     end.not_to change(User, :count)
 
     user = User.last
@@ -96,7 +96,7 @@ RSpec.describe "Google authentication", type: :request do
   end
 
   it "logs out and clears the authenticated session" do
-    start_google_login
+    complete_google_login
     follow_redirect!
 
     delete "/logout"

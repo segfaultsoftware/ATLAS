@@ -68,3 +68,5 @@ group :test do
 end
 
 gem "rspec-rails", "~> 8.0", groups: [ :development, :test ]
+
+gem "commonmarker", "~> 2.9"

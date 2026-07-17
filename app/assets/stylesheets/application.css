@@ -66,6 +66,73 @@ body {
   max-width: 38rem;
 }
 
+.srd-page {
+  background: #f5f1e8;
+  color: #191714;
+  min-height: 100vh;
+  padding: clamp(1.5rem, 5vw, 4rem);
+}
+
+.srd-document {
+  line-height: 1.65;
+  margin: 0 auto;
+  max-width: 48rem;
+}
+
+.srd-document h1,
+.srd-document h2,
+.srd-document h3 {
+  color: #191714;
+  line-height: 1.1;
+}
+
+.srd-document h1 {
+  font-size: clamp(2.75rem, 8vw, 5.5rem);
+  margin: 0 0 1.25rem;
+}
+
+.srd-document h2 {
+  border-top: 1px solid #d4c7ad;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  margin: 3rem 0 1rem;
+  padding-top: 1.5rem;
+}
+
+.srd-document p,
+.srd-document li {
+  font-size: 1.05rem;
+}
+
+.srd-document code {
+  background: #e8ddc8;
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+}
+
+.srd-document pre {
+  background: #191714;
+  color: #f5f1e8;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.srd-document table {
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  width: 100%;
+}
+
+.srd-document th,
+.srd-document td {
+  border-bottom: 1px solid #d4c7ad;
+  padding: 0.65rem;
+  text-align: left;
+}
+
+.srd-document th {
+  background: #e8ddc8;
+}
+
 .status-page {
   display: grid;
   min-height: 100vh;

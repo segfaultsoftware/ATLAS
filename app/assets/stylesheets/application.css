@@ -29,6 +29,43 @@ body {
   color: #f4f4f4;
 }
 
+.landing-page {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(229, 184, 91, 0.18), transparent 36rem),
+    linear-gradient(160deg, #191919 0%, #111 62%, #242018 100%);
+  display: flex;
+  min-height: 100vh;
+  padding: clamp(2rem, 8vw, 7rem);
+}
+
+.landing-intro {
+  max-width: 48rem;
+}
+
+.landing-kicker {
+  color: #e5b85b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+}
+
+.landing-intro h1 {
+  font-size: clamp(4rem, 14vw, 9rem);
+  line-height: 0.9;
+  margin: 0;
+}
+
+.landing-copy {
+  color: #d9d2c0;
+  font-size: clamp(1.15rem, 3vw, 1.8rem);
+  line-height: 1.4;
+  margin: 1.5rem 0 0;
+  max-width: 38rem;
+}
+
 .status-page {
   display: grid;
   min-height: 100vh;

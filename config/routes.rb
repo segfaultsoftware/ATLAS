@@ -13,6 +13,7 @@ Rails.application.routes.draw do
   get "status" => "status#show"
   get "srd" => "srd#show", as: :srd
   get "srd/" => "srd#show"
+  delete "logout" => "sessions#destroy", as: :logout
   root "landing#show"
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)

@@ -24,6 +24,14 @@
   </head>
 
   <body>
+    <nav class="auth-navigation" aria-label="Account">
+      <% if user_signed_in? %>
+        <%= button_to "Log out", logout_path, method: :delete, class: "auth-navigation__button" %>
+      <% else %>
+        <%= button_to "Login/Register", user_google_oauth2_omniauth_authorize_path, method: :post, class: "auth-navigation__button" %>
+      <% end %>
+    </nav>
+
     <%= yield %>
   </body>
 </html>

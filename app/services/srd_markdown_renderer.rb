@@ -12,14 +12,14 @@ class SrdMarkdownRenderer
   end
 
   def to_html
-    sanitize(render_markdown).html_safe
+    sanitize(render_unsanitized_markdown_html).html_safe
   end
 
   private
 
   attr_reader :markdown
 
-  def render_markdown
+  def render_unsanitized_markdown_html
     Commonmarker.to_html(
       markdown,
       options: {

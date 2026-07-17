@@ -142,7 +142,7 @@ body {
     linear-gradient(145deg, #242424, #0d0d0d 68%);
 }
 
-.status-thumb {
+.status-indicator {
   width: min(58vmin, 26rem);
   aspect-ratio: 1;
   border: 0;
@@ -158,15 +158,15 @@ body {
   transition: filter 180ms ease, transform 180ms ease;
 }
 
-.status-thumb:hover,
-.status-thumb:focus-visible {
+.status-indicator:hover,
+.status-indicator:focus-visible {
   filter: drop-shadow(0 1.5rem 2.5rem rgba(0, 0, 0, 0.45));
   outline: none;
   transform: scale(1.04);
 }
 
-.status-thumb.is-spinning {
-  animation: status-thumb-spin 1s ease-in-out;
+.status-indicator.is-spinning {
+  animation: status-indicator-spin 1s ease-in-out;
 }
 
 .visually-hidden {
@@ -181,7 +181,7 @@ body {
   border: 0;
 }
 
-@keyframes status-thumb-spin {
+@keyframes status-indicator-spin {
   from {
     transform: rotate(0deg);
   }

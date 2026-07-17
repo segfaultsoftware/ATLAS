@@ -70,3 +70,7 @@ end
 gem "rspec-rails", "~> 8.0", groups: [ :development, :test ]
 
 gem "commonmarker", "~> 2.9"
+
+gem "devise", "~> 5.0"
+gem "omniauth-google-oauth2", "~> 1.2"
+gem "omniauth-rails_csrf_protection", "~> 2.0"

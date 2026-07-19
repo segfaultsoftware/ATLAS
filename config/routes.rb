@@ -13,6 +13,7 @@ Rails.application.routes.draw do
   get "status" => "status#show"
   get "srd" => "srd#show", as: :srd
   get "srd/" => "srd#show"
+  get "profile" => "profiles#show", as: :profile
   delete "logout" => "sessions#destroy", as: :logout
   root "landing#show"
 

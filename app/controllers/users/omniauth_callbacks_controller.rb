@@ -2,6 +2,8 @@ module Users
   class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     include Devise::Controllers::Rememberable
 
+    skip_before_action :require_authenticated_user!
+
     def google_oauth2
       user = User.find_or_create_from_google_oauth!(request.env.fetch("omniauth.auth"))
 

@@ -29,6 +29,33 @@ body {
   color: #f4f4f4;
 }
 
+.auth-navigation {
+  position: fixed;
+  right: 1rem;
+  top: 1rem;
+  z-index: 10;
+}
+
+.auth-navigation__button {
+  appearance: none;
+  background: rgba(245, 241, 232, 0.94);
+  border: 1px solid rgba(25, 23, 20, 0.18);
+  border-radius: 0.375rem;
+  color: #191714;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0.55rem 0.8rem;
+}
+
+.auth-navigation__button:hover,
+.auth-navigation__button:focus-visible {
+  background: #ffffff;
+  outline: 2px solid rgba(229, 184, 91, 0.72);
+  outline-offset: 2px;
+}
+
 .landing-page {
   align-items: center;
   background:

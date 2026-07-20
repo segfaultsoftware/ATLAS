@@ -2,12 +2,7 @@ require "rails_helper"
 
 RSpec.describe User, type: :model do
   it "uses Google OAuth identity fields without password authentication" do
-    user = described_class.new(
-      provider: "google_oauth2",
-      uid: "google-123",
-      email: "player@example.com",
-      name: "Atlas Player"
-    )
+    user = build(:user, uid: "google-123", email: "player@example.com", name: "Atlas Player")
 
     expect(user).to be_valid
     expect(described_class.devise_modules).to include(:omniauthable, :rememberable)
@@ -21,14 +16,10 @@ RSpec.describe User, type: :model do
   end
 
   it "requires each Google provider uid to be unique" do
-    described_class.create!(
-      provider: "google_oauth2",
-      uid: "google-123",
-      email: "first@example.com"
-    )
+    create(:user, uid: "google-123", email: "first@example.com")
 
-    duplicate = described_class.new(
-      provider: "google_oauth2",
+    duplicate = build(
+      :user,
       uid: "google-123",
       email: "second@example.com"
     )
@@ -38,11 +29,7 @@ RSpec.describe User, type: :model do
   end
 
   it "owns one app-facing profile separately from Google identity data" do
-    user = described_class.create!(
-      provider: "google_oauth2",
-      uid: "google-123",
-      email: "player@example.com"
-    )
+    user = create(:user)
 
     profile = user.create_profile!(preferred_name: "Pilot")
 

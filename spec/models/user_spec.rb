@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe User, type: :model do
   it "uses Google OAuth identity fields without password authentication" do
-    user = build(:user, uid: "google-123", email: "player@example.com", name: "Atlas Player")
+    user = FactoryBot.build(:user, uid: "google-123", email: "player@example.com", name: "Atlas Player")
 
     expect(user).to be_valid
     expect(described_class.devise_modules).to include(:omniauthable, :rememberable)
@@ -16,9 +16,9 @@ RSpec.describe User, type: :model do
   end
 
   it "requires each Google provider uid to be unique" do
-    create(:user, uid: "google-123", email: "first@example.com")
+    FactoryBot.create(:user, uid: "google-123", email: "first@example.com")
 
-    duplicate = build(
+    duplicate = FactoryBot.build(
       :user,
       uid: "google-123",
       email: "second@example.com"
@@ -29,7 +29,7 @@ RSpec.describe User, type: :model do
   end
 
   it "owns one app-facing profile separately from Google identity data" do
-    user = create(:user)
+    user = FactoryBot.create(:user)
 
     profile = user.create_profile!(preferred_name: "Pilot")
 

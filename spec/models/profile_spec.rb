@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe Profile, type: :model do
   it "stores app-facing profile fields separately from Google identity fields" do
-    profile = build(:profile)
+    profile = FactoryBot.build(:profile)
 
     expect(profile).to be_valid
     expect(profile).to respond_to(:preferred_name)
@@ -15,10 +15,10 @@ RSpec.describe Profile, type: :model do
   end
 
   it "belongs to one auth user and lets each auth user own one profile" do
-    user = create(:user)
+    user = FactoryBot.create(:user)
 
-    profile = create(:profile, user: user, preferred_name: "Pilot")
-    duplicate = build(:profile, user: user, preferred_name: "Navigator")
+    profile = FactoryBot.create(:profile, user: user, preferred_name: "Pilot")
+    duplicate = FactoryBot.build(:profile, user: user, preferred_name: "Navigator")
 
     expect(user.reload.profile).to eq(profile)
     expect(duplicate).not_to be_valid
@@ -26,13 +26,13 @@ RSpec.describe Profile, type: :model do
   end
 
   it "allows blank preferred playtimes" do
-    profile = build(:profile, preferred_playtimes: "")
+    profile = FactoryBot.build(:profile, preferred_playtimes: "")
 
     expect(profile).to be_valid
   end
 
   it "limits preferred playtimes to 256 characters" do
-    profile = build(:profile, preferred_playtimes: "a" * 257)
+    profile = FactoryBot.build(:profile, preferred_playtimes: "a" * 257)
 
     expect(profile).not_to be_valid
     expect(profile.errors.of_kind?(:preferred_playtimes, :too_long)).to be(true)

@@ -1,4 +1,6 @@
 class User < ApplicationRecord
+  has_one :profile, dependent: :destroy
+
   devise :rememberable,
          :omniauthable,
          omniauth_providers: [ :google_oauth2 ]

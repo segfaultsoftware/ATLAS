@@ -36,4 +36,17 @@ RSpec.describe User, type: :model do
     expect(duplicate).not_to be_valid
     expect(duplicate.errors.of_kind?(:uid, :taken)).to be(true)
   end
+
+  it "owns one app-facing profile separately from Google identity data" do
+    user = described_class.create!(
+      provider: "google_oauth2",
+      uid: "google-123",
+      email: "player@example.com"
+    )
+
+    profile = user.create_profile!(preferred_name: "Pilot")
+
+    expect(user.profile).to eq(profile)
+    expect(profile.user).to eq(user)
+  end
 end

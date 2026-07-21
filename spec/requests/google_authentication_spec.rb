@@ -47,12 +47,14 @@ RSpec.describe "Google authentication", type: :request do
     expect do
       complete_google_login
     end.to change(User, :count).by(1)
+      .and change(Profile, :count).by(1)
 
     user = User.last
     expect(user.provider).to eq("google_oauth2")
     expect(user.uid).to eq("google-123")
     expect(user.email).to eq("player@example.com")
     expect(user.name).to eq("Atlas Player")
+    expect(user.profile.preferred_name).to eq("Atlas Player")
     expect(user.remember_created_at).to be_present
     expect(response.cookies["remember_user_token"]).to be_present
 
@@ -65,7 +67,29 @@ RSpec.describe "Google authentication", type: :request do
   end
 
   it "reuses an existing Google auth identity on callback" do
-    User.create!(
+    user = FactoryBot.create(
+      :user,
+      provider: "google_oauth2",
+      uid: "google-123",
+      email: "old@example.com",
+      name: "Old Name"
+    )
+    profile = FactoryBot.create(:profile, user: user, preferred_name: "Existing Pilot")
+
+    expect do
+      complete_google_login
+    end.to change(User, :count).by(0)
+      .and change(Profile, :count).by(0)
+
+    expect(user.reload.email).to eq("player@example.com")
+    expect(user.name).to eq("Atlas Player")
+    expect(user.profile).to eq(profile)
+    expect(user.profile.preferred_name).to eq("Existing Pilot")
+  end
+
+  it "recreates a missing profile on a later Google callback" do
+    user = FactoryBot.create(
+      :user,
       provider: "google_oauth2",
       uid: "google-123",
       email: "old@example.com",
@@ -74,11 +98,11 @@ RSpec.describe "Google authentication", type: :request do
 
     expect do
       complete_google_login
-    end.not_to change(User, :count)
+    end.to change(User, :count).by(0)
+      .and change(Profile, :count).by(1)
 
-    user = User.last
-    expect(user.email).to eq("player@example.com")
-    expect(user.name).to eq("Atlas Player")
+    expect(user.reload.profile).to be_present
+    expect(user.profile.preferred_name).to eq("Atlas Player")
   end
 
   it "redirects to the stored destination after callback" do

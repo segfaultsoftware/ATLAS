@@ -33,7 +33,7 @@ RSpec.describe "Profile access", type: :request do
     OmniAuth.config.test_mode = previous_test_mode
   end
 
-  it "blocks anonymous profile access and stores the intended destination for login" do
+  it "blocks anonymous current-profile access and stores the intended destination for login" do
     get "/profile"
 
     expect(response).to redirect_to("/")
@@ -48,14 +48,62 @@ RSpec.describe "Profile access", type: :request do
     expect(response.body).to include("Your profile")
   end
 
-  it "allows authenticated users to access the placeholder profile" do
+  it "blocks anonymous profile record access and stores the intended destination for login" do
+    profile = FactoryBot.create(:profile, preferred_name: "Other Pilot")
+
+    get "/profiles/#{profile.id}"
+
+    expect(response).to redirect_to("/")
+    follow_redirect!
+    expect(response.body).to include("Login/Register")
+
+    complete_google_login
+
+    expect(response).to redirect_to("/profiles/#{profile.id}")
+    follow_redirect!
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Other Pilot")
+  end
+
+  it "allows authenticated users to view their own read-only profile data" do
     complete_google_login
     follow_redirect!
+    User.last.profile.update!(
+      pronouns: "they/them",
+      preferred_playtimes: "Weeknights after 7",
+      avatar_key: "helmet"
+    )
 
     get "/profile"
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("Your profile")
+    expect(response.body).to include("Atlas Player")
+    expect(response.body).to include("they/them")
+    expect(response.body).to include("Weeknights after 7")
+    expect(response.body).to include("helmet")
+    profile_page = Nokogiri::HTML(response.body).at_css(".profile-page")
+    expect(profile_page.css("input, textarea, select")).to be_empty
+  end
+
+  it "allows authenticated users to view another user's profile" do
+    other_profile = FactoryBot.create(
+      :profile,
+      preferred_name: "Signal Weaver",
+      pronouns: "she/her",
+      preferred_playtimes: "Sundays",
+      avatar_key: "star"
+    )
+    complete_google_login
+    follow_redirect!
+
+    get "/profiles/#{other_profile.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Signal Weaver")
+    expect(response.body).to include("she/her")
+    expect(response.body).to include("Sundays")
+    expect(response.body).to include("star")
   end
 
   it "keeps anonymous public routes accessible" do

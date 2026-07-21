@@ -1,4 +1,24 @@
-<main>
-  <h1>Your profile</h1>
-  <p>Profile details will appear here.</p>
+<main class="profile-page">
+  <h1><%= @profile.user_id == current_user.id ? "Your profile" : "Profile" %></h1>
+  <dl class="profile-details">
+    <div class="profile-details__field">
+      <dt>Preferred name</dt>
+      <dd><%= @profile.preferred_name.presence || "Not set" %></dd>
+    </div>
+
+    <div class="profile-details__field">
+      <dt>Pronouns</dt>
+      <dd><%= @profile.pronouns.presence || "Not set" %></dd>
+    </div>
+
+    <div class="profile-details__field">
+      <dt>Preferred playtimes</dt>
+      <dd><%= @profile.preferred_playtimes.presence || "Not set" %></dd>
+    </div>
+
+    <div class="profile-details__field">
+      <dt>Avatar</dt>
+      <dd><%= @profile.avatar_key.presence || "Not set" %></dd>
+    </div>
+  </dl>
 </main>

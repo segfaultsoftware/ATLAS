@@ -34,18 +34,18 @@ RSpec.describe "Header avatar menu", type: :request do
 
     expect(response).to have_http_status(:ok)
     page = Nokogiri::HTML(response.body)
-    account_menu = page.at_css(".account-menu")
-    menu_button = account_menu.at_css("button.account-menu__button")
+    account_menu = page.at_css("details.account-menu")
+    menu_button = account_menu.at_css("summary.account-menu__button")
     menu = account_menu.at_css('[role="menu"]')
 
     expect(account_menu["data-controller"]).to eq("account-menu")
     expect(account_menu["data-action"]).to include("keydown.esc->account-menu#close")
     expect(account_menu["data-action"]).to include("focusout->account-menu#closeWhenFocusLeaves")
+    expect(account_menu["data-action"]).to include("toggle->account-menu#syncExpanded")
     expect(menu_button["aria-expanded"]).to eq("false")
     expect(menu_button["aria-haspopup"]).to eq("menu")
-    expect(menu_button["data-action"]).to eq("click->account-menu#toggle")
     expect(menu_button.text).to include("😢")
-    expect(menu.attribute("hidden")).to be_present
+    expect(menu.attribute("hidden")).to be_nil
     expect(menu.at_css('a[href="/profile"][role="menuitem"]').text).to include("View/edit profile")
     expect(menu.at_css('form[action="/logout"] input[name="_method"][value="delete"]')).to be_present
     expect(menu.at_css('button[role="menuitem"]').text).to include("Log out")
@@ -58,7 +58,7 @@ RSpec.describe "Header avatar menu", type: :request do
     get "/"
 
     expect(response).to have_http_status(:ok)
-    menu_button = Nokogiri::HTML(response.body).at_css("button.account-menu__button")
+    menu_button = Nokogiri::HTML(response.body).at_css("summary.account-menu__button")
     expect(menu_button.text).to include("🙂")
   end
 
@@ -68,7 +68,7 @@ RSpec.describe "Header avatar menu", type: :request do
     sign_in user
 
     get "/"
-    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("😢")
+    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("😢")
 
     expect_any_instance_of(User).not_to receive(:profile)
 
@@ -77,7 +77,7 @@ RSpec.describe "Header avatar menu", type: :request do
     end
 
     expect(response).to have_http_status(:ok)
-    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("😢")
+    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("😢")
     expect(profile_queries).to be_empty
   end
 
@@ -87,7 +87,7 @@ RSpec.describe "Header avatar menu", type: :request do
     sign_in user
 
     get "/"
-    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("😢")
+    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("😢")
 
     patch "/profile",
           params: {
@@ -101,6 +101,6 @@ RSpec.describe "Header avatar menu", type: :request do
     follow_redirect!
 
     expect(response).to have_http_status(:ok)
-    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("🙁")
+    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("🙁")
   end
 end

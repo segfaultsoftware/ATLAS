@@ -72,8 +72,13 @@ body {
   font: inherit;
   height: 2.8rem;
   justify-content: center;
+  list-style: none;
   padding: 0;
   width: 2.8rem;
+}
+
+.account-menu__button::-webkit-details-marker {
+  display: none;
 }
 
 .account-menu__button:hover,
@@ -100,10 +105,6 @@ body {
   position: absolute;
   right: 0;
   top: calc(100% + 0.5rem);
-}
-
-.account-menu__menu[hidden] {
-  display: none;
 }
 
 .account-menu__item {

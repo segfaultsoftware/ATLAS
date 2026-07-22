@@ -38,7 +38,8 @@ RSpec.describe "Profile access", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login/Register")
+    expect(response.body).to include("Login")
+    expect(response.body).to include("Register")
 
     complete_google_login
 
@@ -55,7 +56,8 @@ RSpec.describe "Profile access", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login/Register")
+    expect(response.body).to include("Login")
+    expect(response.body).to include("Register")
 
     complete_google_login
 

@@ -20,13 +20,28 @@ RSpec.describe "Header avatar menu", type: :request do
     Rails.root.join("app/assets/stylesheets/application.css").read
   end
 
-  it "keeps public pages on the Login/Register entry point without rendering an account menu" do
-    get "/"
+  it "renders a shared public header with home branding and separate auth controls" do
+    [ "/", "/srd", "/srd/", "/status" ].each do |path|
+      get path
 
-    expect(response).to have_http_status(:ok)
-    page = Nokogiri::HTML(response.body)
-    expect(page.at_css('form[action="/users/auth/google_oauth2"]')).to be_present
-    expect(page.at_css(".account-menu")).to be_nil
+      expect(response).to have_http_status(:ok)
+      page = Nokogiri::HTML(response.body)
+      header = page.at_css("body > header.site-header")
+      brand = header.at_css('a.site-brand[href="/"]')
+      auth_forms = header.css('form[action="/users/auth/google_oauth2"]')
+
+      expect(brand.at_css('.site-brand__mark[aria-hidden="true"]')).to be_present
+      expect(brand.at_css(".site-brand__text").text).to eq("ATLAS")
+      expect(auth_forms.css("button").map(&:text).map(&:strip)).to contain_exactly("Login", "Register")
+      expect(page.at_css(".account-menu")).to be_nil
+    end
+  end
+
+  it "keeps the public header in normal page flow" do
+    site_navigation_css = application_css[/\.site-navigation \{[^}]+\}/]
+
+    expect(site_navigation_css).to include("display: flex;")
+    expect(site_navigation_css).not_to include("position: fixed")
   end
 
   it "renders the current profile avatar with profile and logout menu actions" do

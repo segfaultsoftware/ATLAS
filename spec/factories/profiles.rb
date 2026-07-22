@@ -4,6 +4,6 @@ FactoryBot.define do
     preferred_name { "Starhand" }
     pronouns { "they/them" }
     preferred_playtimes { "Weeknights after 7" }
-    avatar_key { "helmet" }
+    avatar_key { "smile" }
   end
 end

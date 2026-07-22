@@ -37,4 +37,38 @@ RSpec.describe Profile, type: :model do
     expect(profile).not_to be_valid
     expect(profile.errors.of_kind?(:preferred_playtimes, :too_long)).to be(true)
   end
+
+  it "allows only the fixed emoji avatar keys" do
+    expect(Profile.avatar_options).to include(
+      "smile" => "🙂",
+      "frown" => "🙁",
+      "cry" => "😢"
+    )
+
+    Profile.avatar_options.each_key do |avatar_key|
+      profile = FactoryBot.build(:profile, avatar_key: avatar_key)
+
+      expect(profile).to be_valid
+    end
+  end
+
+  it "rejects avatar keys outside the fixed set" do
+    profile = FactoryBot.build(:profile, avatar_key: "custom-upload")
+
+    expect(profile).not_to be_valid
+    expect(profile.errors.of_kind?(:avatar_key, :inclusion)).to be(true)
+  end
+
+  it "stores the default avatar key when avatar selection is blank" do
+    profile = FactoryBot.build(:profile, avatar_key: "")
+
+    expect(profile).to be_valid
+    expect(profile.avatar_key).to eq(Profile::DEFAULT_AVATAR_KEY)
+  end
+
+  it "returns the default emoji when no avatar is selected" do
+    profile = FactoryBot.build(:profile, avatar_key: nil)
+
+    expect(profile.avatar_emoji).to eq(Profile.avatar_options.fetch(Profile::DEFAULT_AVATAR_KEY))
+  end
 end

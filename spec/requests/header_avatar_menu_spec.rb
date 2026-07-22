@@ -16,6 +16,10 @@ RSpec.describe "Header avatar menu", type: :request do
     queries
   end
 
+  def application_css
+    Rails.root.join("app/assets/stylesheets/application.css").read
+  end
+
   it "keeps public pages on the Login/Register entry point without rendering an account menu" do
     get "/"
 
@@ -49,6 +53,11 @@ RSpec.describe "Header avatar menu", type: :request do
     expect(menu.at_css('a[href="/profile"][role="menuitem"]').text).to include("View/edit profile")
     expect(menu.at_css('form[action="/logout"] input[name="_method"][value="delete"]')).to be_present
     expect(menu.at_css('button[role="menuitem"]').text).to include("Log out")
+  end
+
+  it "keeps the native details fallback menu hidden until opened" do
+    expect(application_css).to include(".account-menu:not([open]) .account-menu__menu")
+    expect(application_css).to include("display: none;")
   end
 
   it "renders the default avatar when the authenticated user has no profile avatar" do

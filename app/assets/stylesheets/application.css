@@ -107,6 +107,10 @@ body {
   top: calc(100% + 0.5rem);
 }
 
+.account-menu:not([open]) .account-menu__menu {
+  display: none;
+}
+
 .account-menu__item {
   appearance: none;
   background: transparent;

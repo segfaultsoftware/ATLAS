@@ -1,5 +1,14 @@
 <main class="profile-page">
-  <h1><%= @profile.user_id == current_user.id ? "Your profile" : "Profile" %></h1>
+  <% viewing_current_profile = @profile.user_id == current_user.id %>
+
+  <div class="profile-page__header">
+    <h1><%= viewing_current_profile ? "Your profile" : "Profile" %></h1>
+
+    <% if viewing_current_profile %>
+      <%= link_to "Edit profile", edit_profile_path, class: "profile-page__action" %>
+    <% end %>
+  </div>
+
   <dl class="profile-details">
     <div class="profile-details__field">
       <dt>Preferred name</dt>
@@ -18,7 +27,7 @@
 
     <div class="profile-details__field">
       <dt>Avatar</dt>
-      <dd><%= @profile.avatar_key.presence || "Not set" %></dd>
+      <dd><%= @profile.avatar_emoji %> <%= @profile.avatar_key.presence || "Not set" %></dd>
     </div>
   </dl>
 </main>

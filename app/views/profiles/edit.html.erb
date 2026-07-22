@@ -1,0 +1,52 @@
+<main class="profile-page">
+  <div class="profile-page__header">
+    <h1>Edit profile</h1>
+    <%= link_to "View profile", profile_path, class: "profile-page__action" %>
+  </div>
+
+  <%= form_with model: @profile, url: profile_path, method: :patch, class: "profile-form" do |form| %>
+    <% if @profile.errors.any? %>
+      <div class="profile-form__errors" role="alert">
+        <h2>Profile could not be saved</h2>
+        <ul>
+          <% @profile.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="profile-form__field">
+      <%= form.label :preferred_name, "Preferred name" %>
+      <%= form.text_field :preferred_name, autocomplete: "name" %>
+    </div>
+
+    <div class="profile-form__field">
+      <%= form.label :pronouns, "Pronouns" %>
+      <%= form.text_field :pronouns %>
+    </div>
+
+    <div class="profile-form__field">
+      <%= form.label :preferred_playtimes, "Preferred playtimes" %>
+      <%= form.text_area :preferred_playtimes, maxlength: 256, rows: 4 %>
+    </div>
+
+    <fieldset class="profile-form__field profile-form__avatars">
+      <legend>Avatar</legend>
+      <div class="profile-form__avatar-options">
+        <% Profile.avatar_options.each do |avatar_key, emoji| %>
+          <label class="profile-form__avatar-option">
+            <%= form.radio_button :avatar_key, avatar_key %>
+            <span aria-hidden="true"><%= emoji %></span>
+            <span><%= avatar_key %></span>
+          </label>
+        <% end %>
+      </div>
+    </fieldset>
+
+    <div class="profile-form__actions">
+      <%= form.button "Save profile", type: "submit", class: "profile-form__submit" %>
+      <%= link_to "Cancel", profile_path, class: "profile-form__cancel" %>
+    </div>
+  <% end %>
+</main>

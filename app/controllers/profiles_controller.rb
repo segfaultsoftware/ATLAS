@@ -4,11 +4,11 @@ class ProfilesController < ApplicationController
   end
 
   def edit
-    @profile = current_profile
+    @profile = ensure_current_profile
   end
 
   def update
-    @profile = current_profile
+    @profile = ensure_current_profile
 
     if @profile.update(profile_params)
       redirect_to profile_path, status: :see_other
@@ -23,11 +23,11 @@ class ProfilesController < ApplicationController
     if params[:id].present?
       Profile.find(params[:id])
     else
-      current_profile
+      ensure_current_profile
     end
   end
 
-  def current_profile
+  def ensure_current_profile
     current_user.profile || current_user.ensure_profile!(preferred_name: current_user.name)
   end
 

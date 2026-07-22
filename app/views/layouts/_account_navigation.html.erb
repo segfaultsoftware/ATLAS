@@ -1,0 +1,30 @@
+<nav class="auth-navigation" aria-label="Account">
+  <% if user_signed_in? %>
+    <% avatar_emoji = current_user.profile&.avatar_emoji || Profile.avatar_options.fetch(Profile::DEFAULT_AVATAR_KEY) %>
+
+    <div
+      class="account-menu"
+      data-controller="account-menu"
+      data-action="keydown.esc->account-menu#close focusout->account-menu#closeWhenFocusLeaves"
+    >
+      <button
+        type="button"
+        class="account-menu__button"
+        aria-label="Account menu"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        data-account-menu-target="button"
+        data-action="click->account-menu#toggle"
+      >
+        <span class="account-menu__avatar" aria-hidden="true"><%= avatar_emoji %></span>
+      </button>
+
+      <div class="account-menu__menu" role="menu" hidden data-account-menu-target="menu">
+        <%= link_to "View/edit profile", profile_path, role: "menuitem", class: "account-menu__item" %>
+        <%= button_to "Log out", logout_path, method: :delete, form: { class: "account-menu__form" }, role: "menuitem", class: "account-menu__item account-menu__item--button" %>
+      </div>
+    </div>
+  <% else %>
+    <%= button_to "Login/Register", user_google_oauth2_omniauth_authorize_path, method: :post, class: "auth-navigation__button" %>
+  <% end %>
+</nav>

@@ -44,7 +44,7 @@ RSpec.describe "Header avatar menu", type: :request do
     expect(site_navigation_css).not_to include("position: fixed")
   end
 
-  it "renders the current profile avatar with profile and logout menu actions" do
+  it "renders the current profile avatar without account menu actions" do
     user = FactoryBot.create(:user)
     FactoryBot.create(:profile, user: user, avatar_key: "cry")
     sign_in user
@@ -53,26 +53,16 @@ RSpec.describe "Header avatar menu", type: :request do
 
     expect(response).to have_http_status(:ok)
     page = Nokogiri::HTML(response.body)
-    account_menu = page.at_css("details.account-menu")
-    menu_button = account_menu.at_css("summary.account-menu__button")
-    menu = account_menu.at_css('[role="menu"]')
+    avatar = page.at_css(".header-avatar")
 
-    expect(account_menu["data-controller"]).to eq("account-menu")
-    expect(account_menu["data-action"]).to include("keydown.esc->account-menu#close")
-    expect(account_menu["data-action"]).to include("focusout->account-menu#closeWhenFocusLeaves")
-    expect(account_menu["data-action"]).to include("toggle->account-menu#syncExpanded")
-    expect(menu_button["aria-expanded"]).to eq("false")
-    expect(menu_button["aria-haspopup"]).to eq("menu")
-    expect(menu_button.text).to include("😢")
-    expect(menu.attribute("hidden")).to be_nil
-    expect(menu.at_css('a[href="/profile"][role="menuitem"]').text).to include("View/edit profile")
-    expect(menu.at_css('form[action="/logout"] input[name="_method"][value="delete"]')).to be_present
-    expect(menu.at_css('button[role="menuitem"]').text).to include("Log out")
-  end
-
-  it "keeps the native details fallback menu hidden until opened" do
-    expect(application_css).to include(".account-menu:not([open]) .account-menu__menu")
-    expect(application_css).to include("display: none;")
+    expect(avatar.text).to include("😢")
+    expect(page.at_css(".account-menu")).to be_nil
+    expect(page.at_css('[role="menu"]')).to be_nil
+    expect(page.at_css('[role="menuitem"]')).to be_nil
+    expect(page.at_css('a[href="/profile"]')).to be_nil
+    expect(page.at_css('form[action="/logout"]')).to be_nil
+    expect(page.text).not_to include("View/edit profile")
+    expect(page.text).not_to include("Log out")
   end
 
   it "renders the default avatar when the authenticated user has no profile avatar" do
@@ -82,8 +72,8 @@ RSpec.describe "Header avatar menu", type: :request do
     get "/"
 
     expect(response).to have_http_status(:ok)
-    menu_button = Nokogiri::HTML(response.body).at_css("summary.account-menu__button")
-    expect(menu_button.text).to include("🙂")
+    avatar = Nokogiri::HTML(response.body).at_css(".header-avatar")
+    expect(avatar.text).to include("🙂")
   end
 
   it "uses the cached header avatar on later authenticated requests" do
@@ -92,7 +82,7 @@ RSpec.describe "Header avatar menu", type: :request do
     sign_in user
 
     get "/"
-    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("😢")
+    expect(Nokogiri::HTML(response.body).at_css(".header-avatar").text).to include("😢")
 
     expect_any_instance_of(User).not_to receive(:profile)
 
@@ -101,7 +91,7 @@ RSpec.describe "Header avatar menu", type: :request do
     end
 
     expect(response).to have_http_status(:ok)
-    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("😢")
+    expect(Nokogiri::HTML(response.body).at_css(".header-avatar").text).to include("😢")
     expect(profile_queries).to be_empty
   end
 
@@ -111,7 +101,7 @@ RSpec.describe "Header avatar menu", type: :request do
     sign_in user
 
     get "/"
-    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("😢")
+    expect(Nokogiri::HTML(response.body).at_css(".header-avatar").text).to include("😢")
 
     patch "/profile",
           params: {
@@ -125,6 +115,6 @@ RSpec.describe "Header avatar menu", type: :request do
     follow_redirect!
 
     expect(response).to have_http_status(:ok)
-    expect(Nokogiri::HTML(response.body).at_css("summary.account-menu__button").text).to include("🙁")
+    expect(Nokogiri::HTML(response.body).at_css(".header-avatar").text).to include("🙁")
   end
 end

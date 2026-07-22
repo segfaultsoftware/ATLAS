@@ -9,6 +9,7 @@ module Users
 
       sign_in(user)
       remember_me(user)
+      refresh_header_avatar!(user.profile)
       redirect_to stored_location_for(:user) || root_path, status: :see_other
     end
 

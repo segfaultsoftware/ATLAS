@@ -71,7 +71,7 @@ RSpec.describe "Profile access", type: :request do
     User.last.profile.update!(
       pronouns: "they/them",
       preferred_playtimes: "Weeknights after 7",
-      avatar_key: "helmet"
+      avatar_key: "smile"
     )
 
     get "/profile"
@@ -81,7 +81,7 @@ RSpec.describe "Profile access", type: :request do
     expect(response.body).to include("Atlas Player")
     expect(response.body).to include("they/them")
     expect(response.body).to include("Weeknights after 7")
-    expect(response.body).to include("helmet")
+    expect(response.body).to include("smile")
     profile_page = Nokogiri::HTML(response.body).at_css(".profile-page")
     expect(profile_page.css("input, textarea, select")).to be_empty
   end
@@ -92,7 +92,7 @@ RSpec.describe "Profile access", type: :request do
       preferred_name: "Signal Weaver",
       pronouns: "she/her",
       preferred_playtimes: "Sundays",
-      avatar_key: "star"
+      avatar_key: "frown"
     )
     complete_google_login
     follow_redirect!
@@ -103,7 +103,7 @@ RSpec.describe "Profile access", type: :request do
     expect(response.body).to include("Signal Weaver")
     expect(response.body).to include("she/her")
     expect(response.body).to include("Sundays")
-    expect(response.body).to include("star")
+    expect(response.body).to include("frown")
   end
 
   it "keeps anonymous public routes accessible" do

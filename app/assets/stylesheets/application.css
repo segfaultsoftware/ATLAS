@@ -160,6 +160,46 @@ body {
   background: #e8ddc8;
 }
 
+.profile-page {
+  margin: 0 auto;
+  max-width: 44rem;
+  min-height: 100vh;
+  padding: clamp(5rem, 10vw, 8rem) clamp(1.5rem, 5vw, 4rem);
+}
+
+.profile-page h1 {
+  font-size: clamp(2.75rem, 8vw, 5rem);
+  line-height: 1;
+  margin: 0 0 2rem;
+}
+
+.profile-details {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+}
+
+.profile-details__field {
+  border-top: 1px solid rgba(245, 241, 232, 0.22);
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 1rem;
+}
+
+.profile-details dt {
+  color: #e5b85b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.profile-details dd {
+  color: #f5f1e8;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
 .status-page {
   display: grid;
   min-height: 100vh;

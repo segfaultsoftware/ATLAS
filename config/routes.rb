@@ -14,6 +14,7 @@ Rails.application.routes.draw do
   get "srd" => "srd#show", as: :srd
   get "srd/" => "srd#show"
   get "profile" => "profiles#show", as: :profile
+  get "profiles/:id" => "profiles#show", as: :view_profile
   delete "logout" => "sessions#destroy", as: :logout
   root "landing#show"
 

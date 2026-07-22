@@ -11,6 +11,7 @@ class ProfilesController < ApplicationController
     @profile = ensure_current_profile
 
     if @profile.update(profile_params)
+      refresh_header_avatar!(@profile)
       redirect_to profile_path, status: :see_other
     else
       render :edit, status: :unprocessable_content

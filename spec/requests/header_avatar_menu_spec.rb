@@ -3,6 +3,19 @@ require "rails_helper"
 RSpec.describe "Header avatar menu", type: :request do
   include Devise::Test::IntegrationHelpers
 
+  def profile_selects_during
+    queries = []
+    subscriber = lambda do |_name, _started, _finished, _unique_id, payload|
+      queries << payload[:sql] if payload[:sql].match?(/\bFROM "profiles"\b/)
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      yield
+    end
+
+    queries
+  end
+
   it "keeps public pages on the Login/Register entry point without rendering an account menu" do
     get "/"
 
@@ -47,5 +60,47 @@ RSpec.describe "Header avatar menu", type: :request do
     expect(response).to have_http_status(:ok)
     menu_button = Nokogiri::HTML(response.body).at_css("button.account-menu__button")
     expect(menu_button.text).to include("🙂")
+  end
+
+  it "uses the cached header avatar on later authenticated requests" do
+    user = FactoryBot.create(:user)
+    FactoryBot.create(:profile, user: user, avatar_key: "cry")
+    sign_in user
+
+    get "/"
+    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("😢")
+
+    expect_any_instance_of(User).not_to receive(:profile)
+
+    profile_queries = profile_selects_during do
+      get "/srd"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("😢")
+    expect(profile_queries).to be_empty
+  end
+
+  it "refreshes the header avatar after saving profile changes" do
+    user = FactoryBot.create(:user)
+    FactoryBot.create(:profile, user: user, avatar_key: "cry")
+    sign_in user
+
+    get "/"
+    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("😢")
+
+    patch "/profile",
+          params: {
+            profile: {
+              preferred_name: "Signal Pilot",
+              pronouns: "they/them",
+              preferred_playtimes: "Weeknights",
+              avatar_key: "frown"
+            }
+          }
+    follow_redirect!
+
+    expect(response).to have_http_status(:ok)
+    expect(Nokogiri::HTML(response.body).at_css("button.account-menu__button").text).to include("🙁")
   end
 end

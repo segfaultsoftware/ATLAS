@@ -67,23 +67,40 @@ body {
 .site-brand__mark {
   align-items: center;
   border: 1px solid rgba(229, 184, 91, 0.42);
-  border-radius: 0.375rem;
+  border-radius: 0.125rem;
   color: #e5b85b;
   display: inline-flex;
   height: 2.5rem;
+  image-rendering: pixelated;
   justify-content: center;
   width: 3.25rem;
 }
 
-.site-brand__mark svg {
+.pixel-spaceship {
   display: block;
-  fill: none;
   height: 1.55rem;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.2;
-  width: 2.85rem;
+  shape-rendering: crispEdges;
+  width: 3.1rem;
+}
+
+.pixel-spaceship__body {
+  fill: #e5b85b;
+}
+
+.pixel-spaceship__highlight {
+  fill: #f5d284;
+}
+
+.pixel-spaceship__shadow {
+  fill: #9c6c29;
+}
+
+.pixel-spaceship__cockpit {
+  fill: #7bcbd1;
+}
+
+.pixel-spaceship__flame {
+  fill: #f06f3f;
 }
 
 .site-brand__text {
@@ -116,21 +133,11 @@ body {
   padding: 0.55rem 0.8rem;
 }
 
-.auth-actions__button--secondary {
-  background: transparent;
-  color: #f5f1e8;
-}
-
 .auth-actions__button:hover,
 .auth-actions__button:focus-visible {
   background: #f5d284;
   outline: 2px solid rgba(229, 184, 91, 0.72);
   outline-offset: 2px;
-}
-
-.auth-actions__button--secondary:hover,
-.auth-actions__button--secondary:focus-visible {
-  color: #191714;
 }
 
 .header-avatar {

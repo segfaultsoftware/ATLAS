@@ -20,7 +20,7 @@ RSpec.describe "Header avatar menu", type: :request do
     Rails.root.join("app/assets/stylesheets/application.css").read
   end
 
-  it "renders a shared public header with home branding and separate auth controls" do
+  it "renders a shared public header with home branding and one auth control" do
     [ "/", "/srd", "/srd/", "/status" ].each do |path|
       get path
 
@@ -31,8 +31,10 @@ RSpec.describe "Header avatar menu", type: :request do
       auth_forms = header.css('form[action="/users/auth/google_oauth2"]')
 
       expect(brand.at_css('.site-brand__mark[aria-hidden="true"]')).to be_present
+      expect(brand.at_css(".pixel-spaceship")).to be_present
       expect(brand.at_css(".site-brand__text").text).to eq("ATLAS")
-      expect(auth_forms.css("button").map(&:text).map(&:strip)).to contain_exactly("Login", "Register")
+      expect(auth_forms.size).to eq(1)
+      expect(auth_forms.css("button").map(&:text).map(&:strip)).to contain_exactly("Login/Register")
       expect(page.at_css(".account-menu")).to be_nil
     end
   end

@@ -33,14 +33,17 @@ RSpec.describe "Google authentication", type: :request do
     OmniAuth.config.test_mode = previous_test_mode
   end
 
-  it "offers public Login and Register controls that start Google OAuth only" do
+  it "offers one public Login/Register control that starts Google OAuth only" do
     get "/"
 
     expect(response).to have_http_status(:ok)
     page = Nokogiri::HTML(response.body)
     auth_forms = page.css('.site-header form[action="/users/auth/google_oauth2"]')
 
-    expect(auth_forms.css("button").map(&:text).map(&:strip)).to contain_exactly("Login", "Register")
+    expect(auth_forms.size).to eq(1)
+    expect(auth_forms.first["method"]).to eq("post")
+    expect(auth_forms.first["data-turbo"]).to eq("false")
+    expect(auth_forms.css("button").map(&:text).map(&:strip)).to contain_exactly("Login/Register")
     expect(response.body).not_to include("/users/sign_in")
     expect(response.body).not_to include("/users/sign_up")
   end
@@ -131,8 +134,7 @@ RSpec.describe "Google authentication", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login")
-    expect(response.body).to include("Register")
+    expect(response.body).to include("Login/Register")
     expect(response.body).not_to include("Log out")
   end
 end

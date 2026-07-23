@@ -1,0 +1,59 @@
+<header class="site-header">
+  <nav class="site-navigation" aria-label="Primary">
+    <%= link_to root_path, class: "site-brand", aria: { label: "ATLAS home" } do %>
+      <span class="site-brand__mark" aria-hidden="true">
+        <svg class="pixel-spaceship" viewBox="0 0 56 28" role="img" focusable="false" shape-rendering="crispEdges">
+          <rect class="pixel-spaceship__flame" x="0" y="12" width="4" height="4" />
+          <rect class="pixel-spaceship__flame" x="4" y="8" width="4" height="4" />
+          <rect class="pixel-spaceship__flame" x="4" y="16" width="4" height="4" />
+          <rect class="pixel-spaceship__shadow" x="8" y="12" width="4" height="4" />
+          <rect class="pixel-spaceship__body" x="12" y="8" width="4" height="12" />
+          <rect class="pixel-spaceship__shadow" x="16" y="4" width="4" height="4" />
+          <rect class="pixel-spaceship__body" x="16" y="8" width="4" height="12" />
+          <rect class="pixel-spaceship__shadow" x="16" y="20" width="4" height="4" />
+          <rect class="pixel-spaceship__body" x="20" y="0" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="20" y="4" width="8" height="4" />
+          <rect class="pixel-spaceship__highlight" x="20" y="8" width="8" height="4" />
+          <rect class="pixel-spaceship__highlight" x="20" y="12" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="20" y="16" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="20" y="20" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="20" y="24" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="28" y="8" width="8" height="4" />
+          <rect class="pixel-spaceship__cockpit" x="28" y="12" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="28" y="16" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="36" y="8" width="4" height="12" />
+          <rect class="pixel-spaceship__highlight" x="40" y="12" width="8" height="4" />
+          <rect class="pixel-spaceship__body" x="48" y="12" width="4" height="4" />
+        </svg>
+      </span>
+      <span class="site-brand__text">ATLAS</span>
+    <% end %>
+
+    <div class="account-actions">
+      <% if user_signed_in? %>
+        <details
+          class="account-menu"
+          data-controller="account-menu"
+          data-action="keydown.esc->account-menu#close focusout->account-menu#closeWhenFocusLeaves toggle->account-menu#syncExpanded"
+        >
+          <summary
+            class="account-menu__button"
+            aria-label="Account menu"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            data-account-menu-target="summary"
+          >
+            <span class="header-avatar account-menu__avatar" aria-hidden="true"><%= header_avatar_emoji %></span>
+          </summary>
+
+          <div class="account-menu__menu" role="menu">
+            <%= link_to "Profile", profile_path, role: "menuitem", class: "account-menu__item" %>
+            <%= button_to "Logout", logout_path, method: :delete, form: { class: "account-menu__form" }, role: "menuitem", class: "account-menu__item account-menu__item--button" %>
+          </div>
+        </details>
+      <% else %>
+        <%= button_to "Login/Register", user_google_oauth2_omniauth_authorize_path, method: :post, form: { class: "account-actions__form", data: { turbo: false } }, class: "account-actions__button" %>
+      <% end %>
+    </div>
+  </nav>
+</header>

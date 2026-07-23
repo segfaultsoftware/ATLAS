@@ -69,7 +69,8 @@ RSpec.describe "Google authentication", type: :request do
     get "/"
     page = Nokogiri::HTML(response.body)
     expect(page.at_css(".header-avatar")).to be_present
-    expect(response.body).not_to include("Log out")
+    expect(response.body).to include("Profile")
+    expect(response.body).to include("Logout")
     expect(response.body).not_to include("Login/Register")
   end
 
@@ -135,6 +136,6 @@ RSpec.describe "Google authentication", type: :request do
     expect(response).to redirect_to("/")
     follow_redirect!
     expect(response.body).to include("Login/Register")
-    expect(response.body).not_to include("Log out")
+    expect(response.body).not_to include("Logout")
   end
 end

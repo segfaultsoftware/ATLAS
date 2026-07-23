@@ -46,7 +46,11 @@ RSpec.describe "Header avatar menu", type: :request do
     expect(site_navigation_css).not_to include("position: fixed")
   end
 
-  it "renders the current profile avatar without account menu actions" do
+  def account_menu_controller
+    Rails.root.join("app/javascript/controllers/account_menu_controller.js").read
+  end
+
+  it "renders the current profile avatar as an account menu trigger" do
     user = FactoryBot.create(:user)
     FactoryBot.create(:profile, user: user, avatar_key: "cry")
     sign_in user
@@ -55,16 +59,44 @@ RSpec.describe "Header avatar menu", type: :request do
 
     expect(response).to have_http_status(:ok)
     page = Nokogiri::HTML(response.body)
-    avatar = page.at_css(".header-avatar")
+    menu = page.at_css("details.account-menu")
+    trigger = menu.at_css("summary.account-menu__button")
+    avatar = trigger.at_css(".header-avatar")
+    menu_panel = menu.at_css('.account-menu__menu[role="menu"]')
+    profile_link = menu_panel.at_css('a.account-menu__item[role="menuitem"][href="/profile"]')
+    logout_form = menu_panel.at_css('form.account-menu__form[action="/logout"][method="post"]')
+    logout_button = logout_form.at_css('button.account-menu__item[role="menuitem"]')
 
+    expect(menu["data-controller"]).to eq("account-menu")
+    expect(trigger["aria-label"]).to eq("Account menu")
+    expect(trigger["aria-haspopup"]).to eq("menu")
+    expect(trigger["aria-expanded"]).to eq("false")
+    expect(trigger["data-account-menu-target"]).to eq("summary")
     expect(avatar.text).to include("😢")
-    expect(page.at_css(".account-menu")).to be_nil
-    expect(page.at_css('[role="menu"]')).to be_nil
-    expect(page.at_css('[role="menuitem"]')).to be_nil
-    expect(page.at_css('a[href="/profile"]')).to be_nil
-    expect(page.at_css('form[action="/logout"]')).to be_nil
-    expect(page.text).not_to include("View/edit profile")
-    expect(page.text).not_to include("Log out")
+    expect(menu_panel.css('[role="menuitem"]').map(&:text).map(&:strip)).to contain_exactly("Profile", "Logout")
+    expect(profile_link.text.strip).to eq("Profile")
+    expect(logout_form.at_css('input[name="_method"][value="delete"]')).to be_present
+    expect(logout_button.text.strip).to eq("Logout")
+    expect(page.text).not_to include("Login/Register")
+  end
+
+  it "wires the account menu for native details fallback and controller behavior" do
+    user = FactoryBot.create(:user)
+    sign_in user
+
+    get "/"
+
+    page = Nokogiri::HTML(response.body)
+    menu = page.at_css("details.account-menu")
+    account_menu_css = application_css
+
+    expect(menu["data-action"]).to include("keydown.esc->account-menu#close")
+    expect(menu["data-action"]).to include("focusout->account-menu#closeWhenFocusLeaves")
+    expect(menu["data-action"]).to include("toggle->account-menu#syncExpanded")
+    expect(account_menu_css).to include(".account-menu:not([open]) .account-menu__menu")
+    expect(account_menu_css).to include(".account-menu__button::-webkit-details-marker")
+    expect(account_menu_controller).to include("closeWhenFocusLeaves")
+    expect(account_menu_controller).to include("syncExpanded")
   end
 
   it "renders the default avatar when the authenticated user has no profile avatar" do

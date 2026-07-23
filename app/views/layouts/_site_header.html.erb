@@ -29,11 +29,30 @@
       <span class="site-brand__text">ATLAS</span>
     <% end %>
 
-    <div class="auth-actions">
+    <div class="account-actions">
       <% if user_signed_in? %>
-        <span class="header-avatar" aria-label="Current avatar"><%= header_avatar_emoji %></span>
+        <details
+          class="account-menu"
+          data-controller="account-menu"
+          data-action="keydown.esc->account-menu#close focusout->account-menu#closeWhenFocusLeaves toggle->account-menu#syncExpanded"
+        >
+          <summary
+            class="account-menu__button"
+            aria-label="Account menu"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            data-account-menu-target="summary"
+          >
+            <span class="header-avatar account-menu__avatar" aria-hidden="true"><%= header_avatar_emoji %></span>
+          </summary>
+
+          <div class="account-menu__menu" role="menu">
+            <%= link_to "Profile", profile_path, role: "menuitem", class: "account-menu__item" %>
+            <%= button_to "Logout", logout_path, method: :delete, form: { class: "account-menu__form" }, role: "menuitem", class: "account-menu__item account-menu__item--button" %>
+          </div>
+        </details>
       <% else %>
-        <%= button_to "Login/Register", user_google_oauth2_omniauth_authorize_path, method: :post, form: { class: "auth-actions__form", data: { turbo: false } }, class: "auth-actions__button" %>
+        <%= button_to "Login/Register", user_google_oauth2_omniauth_authorize_path, method: :post, form: { class: "account-actions__form", data: { turbo: false } }, class: "account-actions__button" %>
       <% end %>
     </div>
   </nav>

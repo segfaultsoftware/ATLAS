@@ -1,0 +1,18 @@
+<main class="webadmin-page">
+  <header class="webadmin-page__header">
+    <div>
+      <p class="webadmin-page__eyebrow">Webadmin</p>
+      <h1>Manual pages</h1>
+    </div>
+    <%= link_to "New page", new_webadmin_manual_page_path, class: "webadmin-page__action" %>
+  </header>
+
+  <ul class="webadmin-page__list">
+    <% @manual_pages.each do |manual_page| %>
+      <li>
+        <%= link_to manual_page.title, edit_webadmin_manual_page_path(id: manual_page.id) %>
+        <span><%= manual_page.slug %></span>
+      </li>
+    <% end %>
+  </ul>
+</main>

@@ -16,6 +16,11 @@ Rails.application.routes.draw do
   get "manual" => "manual#index", as: :manual
   get "manual/" => "manual#index"
   get "manual/:slug" => "manual#show", as: :manual_page
+  namespace :webadmin do
+    resources :manual_pages, only: [ :index, :new, :create, :edit, :update ] do
+      match :preview, on: :collection, via: [ :post, :patch ]
+    end
+  end
   resource :profile, only: [ :show, :edit, :update ]
   get "profiles/:id" => "profiles#show", as: :view_profile
   delete "logout" => "sessions#destroy", as: :logout

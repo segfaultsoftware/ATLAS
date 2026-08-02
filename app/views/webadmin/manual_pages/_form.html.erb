@@ -1,0 +1,47 @@
+<%= form_with model: manual_page,
+              url: manual_page.persisted? ? webadmin_manual_page_path(id: manual_page.id) : webadmin_manual_pages_path,
+              class: "manual-editor" do |form| %>
+  <% if manual_page.errors.any? %>
+    <div role="alert">
+      <h2><%= pluralize(manual_page.errors.count, "error") %> prevented this page from being saved:</h2>
+      <ul>
+        <% manual_page.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="manual-editor__field">
+    <%= form.label :title %>
+    <%= form.text_field :title, required: true %>
+  </div>
+
+  <div class="manual-editor__field">
+    <%= form.label :slug %>
+    <%= form.text_field :slug, required: true %>
+  </div>
+
+  <div class="manual-editor__field">
+    <%= form.label :parent_id, "Parent page" %>
+    <%= form.collection_select :parent_id,
+                               ManualPage.where.not(id: manual_page.id).order(:title),
+                               :id,
+                               :title,
+                               { include_blank: "None" } %>
+  </div>
+
+  <div class="manual-editor__field">
+    <%= form.label :content, "Markdown" %>
+    <%= form.text_area :content, rows: 24, required: true %>
+  </div>
+
+  <div class="manual-editor__actions">
+    <%= form.submit "Save page" %>
+    <button type="submit"
+            formaction="<%= preview_webadmin_manual_pages_path %>"
+            formmethod="post">
+      Preview
+    </button>
+  </div>
+<% end %>

@@ -11,4 +11,20 @@ class ManualPage < ApplicationRecord
 
   validates :title, :slug, presence: true
   validates :slug, uniqueness: true
+
+  def to_param
+    slug
+  end
+
+  def ancestors
+    pages = []
+    current_page = parent
+
+    while current_page
+      pages.unshift(current_page)
+      current_page = current_page.parent
+    end
+
+    pages
+  end
 end

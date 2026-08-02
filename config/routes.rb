@@ -13,6 +13,9 @@ Rails.application.routes.draw do
   get "status" => "status#show"
   get "srd" => "srd#show", as: :srd
   get "srd/" => "srd#show"
+  get "manual" => "manual#index", as: :manual
+  get "manual/" => "manual#index"
+  get "manual/:slug" => "manual#show", as: :manual_page
   resource :profile, only: [ :show, :edit, :update ]
   get "profiles/:id" => "profiles#show", as: :view_profile
   delete "logout" => "sessions#destroy", as: :logout

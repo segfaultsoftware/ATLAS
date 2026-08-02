@@ -32,6 +32,14 @@ RSpec.describe ManualPage, type: :model do
     expect(parent.children).to contain_exactly(child)
   end
 
+  it "returns ancestors from the root toward the page" do
+    grandparent = FactoryBot.create(:manual_page, slug: "grandparent")
+    parent = FactoryBot.create(:manual_page, slug: "parent", parent: grandparent)
+    page = FactoryBot.create(:manual_page, slug: "page", parent: parent)
+
+    expect(page.ancestors).to eq([ grandparent, parent ])
+  end
+
   it "associates pages with categories" do
     page = FactoryBot.create(:manual_page)
     category = FactoryBot.create(:manual_category)

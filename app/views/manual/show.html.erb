@@ -1,0 +1,63 @@
+<% content_for :title, @manual_page.title %>
+
+<main class="manual-page">
+  <div class="manual-layout">
+    <aside class="manual-sidebar">
+      <nav aria-label="Breadcrumb" class="manual-breadcrumbs">
+        <ol>
+          <li><%= link_to "Manual", manual_path %></li>
+          <% @breadcrumbs.each do |page| %>
+            <li><%= link_to page.title, manual_page_path(page) %></li>
+          <% end %>
+          <li aria-current="page"><%= @manual_page.title %></li>
+        </ol>
+      </nav>
+
+      <% if @table_of_contents.any? %>
+        <nav aria-label="Table of contents" class="manual-toc">
+          <h2>Contents</h2>
+          <ol>
+            <% @table_of_contents.each do |entry| %>
+              <li class="manual-toc__item manual-toc__item--level-<%= entry[:level] %>">
+                <%= link_to entry[:text], "##{entry[:id]}" %>
+              </li>
+            <% end %>
+          </ol>
+        </nav>
+      <% end %>
+
+      <% if @categories.any? %>
+        <section aria-labelledby="manual-categories-heading" class="manual-categories">
+          <h2 id="manual-categories-heading">Categories</h2>
+          <ul>
+            <% @categories.each do |category| %>
+              <li><%= category.name %></li>
+            <% end %>
+          </ul>
+        </section>
+      <% end %>
+    </aside>
+
+    <article class="manual-document">
+      <%= @manual_html %>
+
+      <nav aria-label="Page navigation" class="manual-page-flow">
+        <% if @page_flow[:previous] %>
+          <%= link_to "Previous: #{@page_flow[:previous].title}", manual_page_path(@page_flow[:previous]) %>
+        <% end %>
+        <% if @page_flow[:next] %>
+          <%= link_to "Next: #{@page_flow[:next].title}", manual_page_path(@page_flow[:next]) %>
+        <% end %>
+      </nav>
+    </article>
+
+    <aside class="manual-latest">
+      <h2>Latest updates</h2>
+      <ol>
+        <% @latest_pages.each do |page| %>
+          <li><%= link_to page.title, manual_page_path(page) %></li>
+        <% end %>
+      </ol>
+    </aside>
+  </div>
+</main>

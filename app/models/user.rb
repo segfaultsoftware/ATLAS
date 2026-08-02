@@ -1,6 +1,8 @@
 class User < ApplicationRecord
   has_one :profile, dependent: :destroy
 
+  enum :role, { user: "user", webadmin: "webadmin" }, default: :user
+
   devise :rememberable,
          :omniauthable,
          omniauth_providers: [ :google_oauth2 ]

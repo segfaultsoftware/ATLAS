@@ -36,4 +36,19 @@ RSpec.describe User, type: :model do
     expect(user.profile).to eq(profile)
     expect(profile.user).to eq(user)
   end
+
+  it "defaults users to the User role" do
+    user = FactoryBot.create(:user)
+
+    expect(user.reload.role).to eq("user")
+    expect(user).to be_user
+    expect(user).not_to be_webadmin
+  end
+
+  it "supports promoting a user to Webadmin" do
+    user = FactoryBot.create(:user, role: :webadmin)
+
+    expect(user).to be_webadmin
+    expect(user.role).to eq("webadmin")
+  end
 end

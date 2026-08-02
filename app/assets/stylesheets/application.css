@@ -335,6 +335,132 @@ body {
   background: #e8ddc8;
 }
 
+.manual-page {
+  background: #f5f1e8;
+  color: #191714;
+  min-height: calc(100vh - 4.75rem);
+  padding: clamp(1.5rem, 5vw, 4rem);
+}
+
+.manual-layout {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 48rem) minmax(12rem, 16rem);
+  margin: 0 auto;
+  max-width: 88rem;
+}
+
+.manual-sidebar,
+.manual-latest {
+  font-size: 0.95rem;
+}
+
+.manual-sidebar h2,
+.manual-latest h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.manual-sidebar ol,
+.manual-sidebar ul,
+.manual-latest ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.manual-breadcrumbs {
+  margin-bottom: 2rem;
+}
+
+.manual-breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  list-style: none;
+  padding: 0;
+}
+
+.manual-breadcrumbs li:not(:last-child)::after {
+  color: #806d4d;
+  content: "/";
+  margin-left: 0.6rem;
+}
+
+.manual-toc,
+.manual-categories {
+  margin-bottom: 2rem;
+}
+
+.manual-toc__item--level-2 {
+  margin-left: 0.75rem;
+}
+
+.manual-toc__item--level-3,
+.manual-toc__item--level-4,
+.manual-toc__item--level-5,
+.manual-toc__item--level-6 {
+  margin-left: 1.5rem;
+}
+
+.manual-document {
+  line-height: 1.65;
+  min-width: 0;
+}
+
+.manual-document h1,
+.manual-document h2,
+.manual-document h3 {
+  color: #191714;
+  line-height: 1.1;
+}
+
+.manual-document h1 {
+  font-size: clamp(2.75rem, 8vw, 5.5rem);
+  margin: 0 0 1.25rem;
+}
+
+.manual-document h2 {
+  border-top: 1px solid #d4c7ad;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  margin: 3rem 0 1rem;
+  padding-top: 1.5rem;
+}
+
+.manual-document p,
+.manual-document li {
+  font-size: 1.05rem;
+}
+
+.manual-page-flow {
+  border-top: 1px solid #d4c7ad;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: 3rem;
+  padding-top: 1rem;
+}
+
+@media (max-width: 72rem) {
+  .manual-layout {
+    grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  }
+
+  .manual-latest {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 48rem) {
+  .manual-layout {
+    display: block;
+  }
+
+  .manual-sidebar,
+  .manual-latest {
+    margin-bottom: 2rem;
+  }
+}
+
 .profile-page {
   margin: 0 auto;
   max-width: 44rem;

@@ -10,6 +10,7 @@ module Atlas
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 8.1
+    config.x.manual.landing_page_slug = ENV.fetch("MANUAL_LANDING_PAGE_SLUG", "index")
 
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.

@@ -1,0 +1,11 @@
+<main class="webadmin-page">
+  <header class="webadmin-page__header">
+    <div>
+      <p class="webadmin-page__eyebrow">Webadmin</p>
+      <h1>Edit <%= @manual_page.title %></h1>
+    </div>
+    <%= link_to "All pages", webadmin_manual_pages_path, class: "webadmin-page__action" %>
+  </header>
+
+  <%= render "form", manual_page: @manual_page %>
+</main>

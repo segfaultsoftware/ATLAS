@@ -10,7 +10,36 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_20_162000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_02_000300) do
+  create_table "manual_categories", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_manual_categories_on_slug", unique: true
+  end
+
+  create_table "manual_page_categories", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "manual_category_id", null: false
+    t.integer "manual_page_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["manual_category_id"], name: "index_manual_page_categories_on_manual_category_id"
+    t.index ["manual_page_id", "manual_category_id"], name: "index_manual_page_categories_on_page_and_category", unique: true
+    t.index ["manual_page_id"], name: "index_manual_page_categories_on_manual_page_id"
+  end
+
+  create_table "manual_pages", force: :cascade do |t|
+    t.text "content", default: "", null: false
+    t.datetime "created_at", null: false
+    t.integer "parent_id"
+    t.string "slug", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["parent_id"], name: "index_manual_pages_on_parent_id"
+    t.index ["slug"], name: "index_manual_pages_on_slug", unique: true
+  end
+
   create_table "profiles", force: :cascade do |t|
     t.string "avatar_key"
     t.datetime "created_at", null: false
@@ -29,12 +58,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_162000) do
     t.string "provider", null: false
     t.datetime "remember_created_at"
     t.string "remember_token"
+    t.string "role", default: "user", null: false
     t.string "uid", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_users_on_email"
     t.index ["provider", "uid"], name: "index_users_on_provider_and_uid", unique: true
     t.index ["remember_token"], name: "index_users_on_remember_token", unique: true
+    t.index ["role"], name: "index_users_on_role"
   end
 
+  add_foreign_key "manual_page_categories", "manual_categories"
+  add_foreign_key "manual_page_categories", "manual_pages"
+  add_foreign_key "manual_pages", "manual_pages", column: "parent_id"
   add_foreign_key "profiles", "users"
 end

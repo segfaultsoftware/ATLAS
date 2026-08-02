@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+
+require_relative "../config/environment"
+
+unless ARGV.length == 2
+  abort "Usage: bin/manual-import PAGE_SLUG SOURCE_PATH"
+end
+
+page = ManualPage.find_by!(slug: ARGV[0])
+ManualPageImporter.call(page:, source_path: ARGV[1])
+puts "Imported #{ARGV[1]} into Manual page #{page.slug}."

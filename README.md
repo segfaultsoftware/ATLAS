@@ -12,3 +12,19 @@ ATLAS (Astrogation, Transit & Logistics Access System) is a webapp which functio
 ### SRD
 
 - [ATLAS SRD](docs/srd/atlas-srd.md)
+
+## Manual
+
+The database-backed Manual uses the landing-page slug configured by
+`Rails.configuration.x.manual.landing_page_slug`. It defaults to `index` and
+can be overridden with the `MANUAL_LANDING_PAGE_SLUG` environment variable.
+
+To promote an existing Google-authenticated user to Webadmin, run:
+
+```sh
+bin/rails console
+User.find_by!(email: "admin@example.com").update!(role: :webadmin)
+```
+
+Users are assigned the `User` role by default. Webadmins are the only users
+authorized to manage Manual content.

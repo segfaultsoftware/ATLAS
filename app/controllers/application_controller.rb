@@ -43,6 +43,12 @@ class ApplicationController < ActionController::Base
     redirect_to root_path, status: :see_other
   end
 
+  def require_webadmin!
+    return if current_user&.webadmin?
+
+    redirect_to root_path, alert: "Webadmin access required.", status: :see_other
+  end
+
   def storable_location_request?
     [ "GET", "HEAD" ].include?(request.request_method)
   end

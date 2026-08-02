@@ -11,6 +11,7 @@ class ManualPage < ApplicationRecord
 
   validates :title, :slug, presence: true
   validates :slug, uniqueness: true
+  validate :parent_cannot_create_cycle
 
   def to_param
     slug
@@ -26,5 +27,20 @@ class ManualPage < ApplicationRecord
     end
 
     pages
+  end
+
+  private
+
+  def parent_cannot_create_cycle
+    ancestor = parent
+
+    while ancestor
+      if ancestor == self
+        errors.add(:parent, "cannot create a cycle")
+        break
+      end
+
+      ancestor = ancestor.parent
+    end
   end
 end

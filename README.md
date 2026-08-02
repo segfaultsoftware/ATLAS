@@ -28,3 +28,16 @@ User.find_by!(email: "admin@example.com").update!(role: :webadmin)
 
 Users are assigned the `User` role by default. Webadmins are the only users
 authorized to manage Manual content.
+
+To import or export a Manual page without direct database access, use the
+provided scripts with a page slug and a text or Markdown file:
+
+```sh
+bin/manual-import index docs/srd/atlas-srd.md
+bin/manual-export index .codex-tmp/atlas-srd-backup.md
+```
+
+The equivalent Rails tasks are `manual:import[slug,source_path]` and
+`manual:export[slug,destination_path]`. Running `bin/rails db:seed` creates the
+`index` landing page when needed and imports the existing SRD through the same
+import service.

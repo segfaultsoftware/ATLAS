@@ -32,6 +32,16 @@ RSpec.describe ManualPage, type: :model do
     expect(parent.children).to contain_exactly(child)
   end
 
+  it "rejects cyclic parent relationships" do
+    parent = FactoryBot.create(:manual_page, slug: "parent")
+    child = FactoryBot.create(:manual_page, slug: "child", parent: parent)
+
+    parent.parent = child
+
+    expect(parent).not_to be_valid
+    expect(parent.errors[:parent]).to include("cannot create a cycle")
+  end
+
   it "returns ancestors from the root toward the page" do
     grandparent = FactoryBot.create(:manual_page, slug: "grandparent")
     parent = FactoryBot.create(:manual_page, slug: "parent", parent: grandparent)

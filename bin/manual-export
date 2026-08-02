@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+
+require_relative "../config/environment"
+
+unless ARGV.length == 2
+  abort "Usage: bin/manual-export PAGE_SLUG DESTINATION_PATH"
+end
+
+page = ManualPage.find_by!(slug: ARGV[0])
+ManualPageExporter.call(page:, destination_path: ARGV[1])
+puts "Exported Manual page #{page.slug} to #{ARGV[1]}."

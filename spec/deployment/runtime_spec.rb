@@ -8,6 +8,8 @@ RSpec.describe "the production runtime contract" do
   let(:production_environment) { repository_root.join("config/environments/production.rb").read }
 
   it "bridges a mounted Compose secret into Rails" do
+    expect(entrypoint).to include('secret_path="${RAILS_MASTER_KEY_FILE:-/run/secrets/rails_master_key}"')
+
     Tempfile.create("atlas-master-key") do |secret|
       secret.write("test-key\n")
       secret.flush

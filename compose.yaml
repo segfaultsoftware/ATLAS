@@ -18,7 +18,6 @@ services:
         mode: 0400
     environment:
       ATLAS_HOST: ${ATLAS_HOST:-atlas.home.arpa}
-      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
     healthcheck:
       test:
         - CMD-SHELL

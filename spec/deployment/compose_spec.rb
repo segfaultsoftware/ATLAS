@@ -29,7 +29,7 @@ RSpec.describe "the production Compose contract" do
     )
     expect(secret.fetch("mode").to_i).to eq(0o400)
     expect(compose.dig("secrets", "rails_master_key", "file")).to include("RAILS_MASTER_KEY_FILE")
-    expect(service.dig("environment", "RAILS_MASTER_KEY")).to eq("${RAILS_MASTER_KEY:-}")
+    expect(service.fetch("environment")).not_to have_key("RAILS_MASTER_KEY")
 
     healthcheck = service.dig("healthcheck", "test").join(" ")
     expect(healthcheck).to include("/up", "Host:", "ATLAS_HOST")

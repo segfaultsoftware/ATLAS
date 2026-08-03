@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+
+require_relative "../lib/atlas/deployment"
+
+abort "usage: bin/verify-deployment" unless ARGV.empty?
+
+Atlas::Deployment::Verifier.new.verify

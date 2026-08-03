@@ -1,0 +1,42 @@
+services:
+  atlas:
+    build:
+      context: .
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - web
+      - internal
+    volumes:
+      - ./storage:/rails/storage
+    secrets:
+      - source: rails_master_key
+        target: rails_master_key
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    environment:
+      ATLAS_HOST: ${ATLAS_HOST:-atlas.home.arpa}
+      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl --fail --silent --show-error
+          --header "Host: $${ATLAS_HOST:-atlas.home.arpa}"
+          http://127.0.0.1/up || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  web:
+    external: true
+  internal:
+    internal: true
+
+secrets:
+  rails_master_key:
+    file: ${RAILS_MASTER_KEY_FILE:-/srv/platform/secrets/atlas/rails_master_key}

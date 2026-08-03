@@ -1,8 +1,31 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  ./bin/rails db:prepare
+secret_path="${RAILS_MASTER_KEY_FILE:-/run/secrets/rails_master_key}"
+
+if [ -z "${RAILS_MASTER_KEY:-}" ] && [ -r "$secret_path" ]; then
+  export RAILS_MASTER_KEY="$(cat "$secret_path")"
 fi
 
-exec "${@}"
+if [ "${RAILS_ENV:-}" = "production" ] && [ -z "${RAILS_MASTER_KEY:-}" ]; then
+  echo "RAILS_MASTER_KEY is required in production" >&2
+  exit 1
+fi
+
+run_as_app_user() {
+  if [ "$(id -u)" -eq 0 ]; then
+    exec gosu 1000:1000 "$@"
+  fi
+
+  exec "$@"
+}
+
+# If running the rails server then create or migrate existing database
+if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+  if [ "$(id -u)" -eq 0 ]; then
+    gosu 1000:1000 ./bin/rails db:prepare
+  else
+    ./bin/rails db:prepare
+  fi
+fi
+
+run_as_app_user "$@"

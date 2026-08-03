@@ -1,6 +1,7 @@
 /.bundle
 /.env*
-!/env.example
+!/.env.example
+/.rails_master_key
 
 .idea
 

@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+
+require_relative "../lib/atlas/deployment"
+
+action = ARGV.shift || "update"
+
+Atlas::Deployment::DeployWorkflow.new.run(action, arguments: ARGV)

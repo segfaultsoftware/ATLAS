@@ -8,6 +8,7 @@ ATLAS (Astrogation, Transit & Logistics Access System) is a webapp which functio
 
 - [Personas](docs/development/personas.md)
 - [Requirements](docs/development/requirements.md)
+- [Deployment and recovery](docs/deployment.md)
 
 ### SRD
 

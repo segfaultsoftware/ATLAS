@@ -18,8 +18,8 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     expect(runner).to have_received(:run).with(%w[docker compose config --quiet])
     expect(runner).to have_received(:run).with(%w[docker compose build atlas])
     expect(runner).to have_received(:run).with(%w[docker compose up --detach atlas])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/rails db:prepare])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/rails db:seed])
+    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare])
+    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed])
     expect(verifier).to have_received(:verify)
   end
 
@@ -30,8 +30,8 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     expect(runner).to have_received(:run).with(%w[docker compose config --quiet])
     expect(runner).to have_received(:run).with(%w[docker compose build atlas])
     expect(runner).to have_received(:run).with(%w[docker compose up --detach atlas])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/rails db:prepare])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/rails db:seed])
+    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare])
+    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed])
   end
 
   it "checks persistence across an explicit restart" do
@@ -48,9 +48,12 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     expect { workflow.run("restart") }.to raise_error(Atlas::Deployment::CommandError, /persistence marker/)
   end
 
-  it "requires explicit confirmation for rollback and restore operations" do
+  it "requires explicit confirmation for rollback operations" do
     expect { workflow.run("rollback") }.to raise_error(ArgumentError, /rollback.*--confirm/)
-    expect { workflow.run("restore", arguments: [ "/tmp/storage" ]) }.to raise_error(ArgumentError, /restore.*--confirm/)
+  end
+
+  it "does not provide an automated restore action" do
+    expect { workflow.run("restore") }.to raise_error(ArgumentError, /usage: bin\/deploy/)
   end
 
   it "selects a rollback image only when explicitly confirmed" do

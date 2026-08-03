@@ -8,6 +8,7 @@ RSpec.describe "the production Compose contract" do
 
   it "builds the checked-out repository on the shared and private networks" do
     expect(service.fetch("build").fetch("context")).to eq(".")
+    expect(service.fetch("user")).to eq("0:0")
     expect(service.fetch("networks")).to contain_exactly("web", "internal")
     expect(compose.dig("networks", "web", "external")).to be(true)
     expect(compose.dig("networks", "internal", "internal")).to be(true)

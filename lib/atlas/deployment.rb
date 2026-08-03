@@ -119,7 +119,7 @@ module Atlas
     end
 
     class DeployWorkflow
-      VALID_ACTIONS = %w[fresh update restart seed rollback restore].freeze
+      VALID_ACTIONS = %w[fresh update restart seed rollback].freeze
 
       def initialize(runner: CommandRunner.new, verifier: nil, env: ENV, repository_root: Pathname(__dir__).join("../..").expand_path)
         @runner = runner
@@ -150,8 +150,6 @@ module Atlas
           verifier.verify
         when "rollback"
           rollback(arguments)
-        when "restore"
-          restore(arguments)
         end
       end
 
@@ -160,7 +158,7 @@ module Atlas
       attr_reader :runner, :verifier, :env, :repository_root
 
       def usage
-        "usage: bin/deploy [fresh, update, restart, seed, rollback IMAGE_REF --confirm, restore STORAGE_PATH --confirm]"
+        "usage: bin/deploy [fresh, update, restart, seed, rollback IMAGE_REF --confirm]"
       end
 
       def compose(*arguments)
@@ -168,7 +166,7 @@ module Atlas
       end
 
       def rails_task(task)
-        compose("exec", "--no-TTY", SERVICE, "./bin/rails", task)
+        compose("exec", "--no-TTY", SERVICE, "./bin/docker-entrypoint", "./bin/rails", task)
       end
 
       def run_deployment
@@ -183,7 +181,7 @@ module Atlas
       def landing_marker
         runner.capture(
           COMPOSE + [
-            "exec", "--no-TTY", SERVICE, "./bin/rails", "runner",
+            "exec", "--no-TTY", SERVICE, "./bin/docker-entrypoint", "./bin/rails", "runner",
             'require "digest"; page = ManualPage.find_by!(slug: "index"); puts [page.id, page.created_at.iso8601(6), Digest::SHA256.hexdigest(page.content)].join(" ")'
           ]
         ).strip
@@ -192,7 +190,7 @@ module Atlas
       def persistence_marker
         runner.capture(
           COMPOSE + [
-            "exec", "--no-TTY", SERVICE, "./bin/rails", "runner",
+            "exec", "--no-TTY", SERVICE, "./bin/docker-entrypoint", "./bin/rails", "runner",
             'require "digest"; page = ManualPage.find_by!(slug: "index"); database = ActiveRecord::Base.connection_db_config.database; puts [page.id, page.created_at.iso8601(6), Digest::SHA256.hexdigest(page.content), Digest::SHA256.file(database).hexdigest].join(" ")'
           ]
         ).strip
@@ -212,17 +210,6 @@ module Atlas
         raise CommandError, "Compose did not provide a local image name for #{SERVICE}" if image_name.to_s.empty?
 
         runner.run([ "docker", "tag", image_ref, image_name ])
-        compose("up", "--detach", "--no-build", SERVICE)
-        verifier.verify
-      end
-
-      def restore(arguments)
-        storage_path = confirmed_argument(arguments, "restore", "a storage directory")
-        source = Pathname(storage_path).expand_path
-        raise ArgumentError, "restore path must be a directory: #{source}" unless source.directory?
-
-        compose("stop", SERVICE)
-        runner.run([ "cp", "-a", "#{source}/.", "#{repository_root.join("storage")}/" ])
         compose("up", "--detach", "--no-build", SERVICE)
         verifier.verify
       end

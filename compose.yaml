@@ -2,6 +2,7 @@ services:
   atlas:
     build:
       context: .
+    user: "0:0"
     restart: unless-stopped
     expose:
       - "80"

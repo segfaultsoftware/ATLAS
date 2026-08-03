@@ -11,9 +11,21 @@ if [ "${RAILS_ENV:-}" = "production" ] && [ -z "${RAILS_MASTER_KEY:-}" ]; then
   exit 1
 fi
 
+run_as_app_user() {
+  if [ "$(id -u)" -eq 0 ]; then
+    exec gosu 1000:1000 "$@"
+  fi
+
+  exec "$@"
+}
+
 # If running the rails server then create or migrate existing database
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  ./bin/rails db:prepare
+  if [ "$(id -u)" -eq 0 ]; then
+    gosu 1000:1000 ./bin/rails db:prepare
+  else
+    ./bin/rails db:prepare
+  fi
 fi
 
-exec "${@}"
+run_as_app_user "$@"

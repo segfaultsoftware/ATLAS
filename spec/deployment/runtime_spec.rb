@@ -5,9 +5,17 @@ require "tempfile"
 RSpec.describe "the production runtime contract" do
   let(:repository_root) { Pathname.new(__dir__).join("../..").expand_path }
   let(:entrypoint) { repository_root.join("bin/docker-entrypoint").read }
+  let(:dockerfile) { repository_root.join("Dockerfile").read }
   let(:production_environment) { repository_root.join("config/environments/production.rb").read }
 
-  it "bridges a mounted Compose secret into Rails" do
+  it "bootstraps the secret as root and drops application commands to UID/GID 1000" do
+    expect(dockerfile).to include("apt-get install --no-install-recommends -y curl gosu")
+    expect(dockerfile).to include("USER root")
+    expect(entrypoint).to include("exec gosu 1000:1000")
+    expect(entrypoint).to include("run_as_app_user")
+  end
+
+  it "bridges a configured secret file into Rails" do
     expect(entrypoint).to include('secret_path="${RAILS_MASTER_KEY_FILE:-/run/secrets/rails_master_key}"')
 
     Tempfile.create("atlas-master-key") do |secret|
@@ -34,6 +42,25 @@ RSpec.describe "the production runtime contract" do
 
     expect(status).not_to be_success
     expect(stderr).to include("RAILS_MASTER_KEY is required in production")
+  end
+
+  if ENV["ATLAS_TEST_IMAGE"]
+    it "bridges a real file-backed mount before dropping the application command" do
+      Tempfile.create("atlas-mounted-master-key") do |secret|
+        secret.write("test-key\n")
+        secret.flush
+        secret.chmod(0o600)
+
+        _stdout, stderr, status = Open3.capture3(
+          "docker", "run", "--rm", "--user", "0:0",
+          "--mount", "type=bind,src=#{secret.path},dst=/run/secrets/rails_master_key,readonly",
+          "-e", "RAILS_ENV=production", ENV.fetch("ATLAS_TEST_IMAGE"),
+          "ruby", "-e", 'abort unless Process.uid == 1000 && ENV.fetch("RAILS_MASTER_KEY") == "test-key"'
+        )
+
+        expect(status).to be_success, stderr
+      end
+    end
   end
 
   it "configures Rails for the HTTPS reverse-proxy host" do

@@ -1,3 +1,4 @@
+require "json"
 require "open3"
 require "pathname"
 require "shellwords"
@@ -57,10 +58,14 @@ module Atlas
       end
 
       def verify_no_published_ports
-        published_port = runner.capture(compose("port", SERVICE, "80")).strip
-        return if published_port.empty?
+        rendered_config = JSON.parse(runner.capture(compose("config", "--format", "json")))
+        service = rendered_config.fetch("services").fetch(SERVICE)
+        published_mapping = Array(service["ports"]).find do |mapping|
+          mapping.is_a?(Hash) && mapping["target"].to_i == 80 && !mapping["published"].nil?
+        end
+        return if published_mapping.nil?
 
-        raise CommandError, "Compose published an unexpected host port for #{SERVICE}: #{published_port}"
+        raise CommandError, "Compose published an unexpected host port for #{SERVICE}: #{published_mapping.fetch("published")}"
       end
 
       def verify_endpoint(path)

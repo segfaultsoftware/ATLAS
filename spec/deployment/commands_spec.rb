@@ -1,3 +1,4 @@
+require "json"
 require "pathname"
 
 require_relative "../../lib/atlas/deployment"
@@ -78,8 +79,8 @@ RSpec.describe Atlas::Deployment::Verifier do
       case command
       when %w[docker compose ps --status running --services]
         "atlas\n"
-      when %w[docker compose port atlas 80]
-        ""
+      when %w[docker compose config --format json]
+        { "services" => { "atlas" => { "expose" => [ 80 ] } } }.to_json
       when %w[docker compose images -q atlas]
         "sha256:atlas\n"
       when %w[docker compose config]
@@ -103,7 +104,7 @@ RSpec.describe Atlas::Deployment::Verifier do
 
     expect(runner).to have_received(:run).with(%w[docker compose config --quiet])
     expect(runner).to have_received(:capture).with(%w[docker compose ps --status running --services])
-    expect(runner).to have_received(:capture).with(%w[docker compose port atlas 80])
+    expect(runner).to have_received(:capture).with(%w[docker compose config --format json])
     expect(runner).to have_received(:capture).with(%w[docker compose config])
     expect(runner).to have_received(:capture).with(
       [ "curl", "--fail", "--silent", "--show-error", "--location", "--header", "Host: atlas.home.arpa", "https://atlas.home.arpa/up" ]
@@ -121,6 +122,46 @@ RSpec.describe Atlas::Deployment::Verifier do
     )
 
     expect { verifier.verify }.not_to raise_error
+  end
+
+  it "accepts an exposed atlas port without a published host mapping" do
+    expect { verifier.verify }.not_to raise_error
+  end
+
+  it "accepts a null published mapping for atlas port 80" do
+    allow(runner).to receive(:capture).with(%w[docker compose config --format json]).and_return(
+      {
+        "services" => {
+          "atlas" => {
+            "ports" => [ { "target" => 80, "published" => nil, "protocol" => "tcp", "mode" => "ingress" } ]
+          }
+        }
+      }.to_json
+    )
+
+    expect { verifier.verify }.not_to raise_error
+  end
+
+  it "rejects a concrete published host mapping for atlas port 80" do
+    allow(runner).to receive(:capture).with(%w[docker compose config --format json]).and_return(
+      {
+        "services" => {
+          "atlas" => {
+            "ports" => [ { "target" => 80, "published" => 8080, "protocol" => "tcp", "mode" => "ingress" } ]
+          }
+        }
+      }.to_json
+    )
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError, /unexpected host port.*8080/)
+  end
+
+  it "preserves failures from the rendered Compose configuration command" do
+    allow(runner).to receive(:capture).with(%w[docker compose config --format json]).and_raise(
+      Atlas::Deployment::CommandError, "command failed (1): docker compose config --format json"
+    )
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError, /command failed.*config --format json/)
   end
 
   it "rejects a Rails master key in rendered Compose configuration" do

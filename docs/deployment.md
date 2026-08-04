@@ -282,6 +282,46 @@ intended LAN-facing proxy path is allowed by the host firewall. Re-check the
 actual LAN client, VLAN, and firewall policy before declaring the service
 LAN-only.
 
+
+### Copy certs to clients on the LAN
+
+First transfer the certificate from the homeserver:
+
+```
+scp sam@192.168.4.32:/srv/apps/ATLAS/.codex-tmp/caddy-local-root.crt .
+```
+
+Verify its SHA-256 fingerprint matches the homeserver before trusting it:
+
+```
+openssl x509 -in caddy-local-root.crt \
+  -noout -subject -issuer -fingerprint -sha256
+```
+
+Then install it according to the laptop’s OS.
+
+##### Windows
+
+1. Double-click caddy-local-root.crt.
+1. Select Install Certificate.
+1. Choose Current User or Local Machine.
+1. Select Place all certificates in the following store.
+1. Choose Trusted Root Certification Authorities.
+1. Finish the wizard and restart Chrome, Edge, or Firefox.
+
+Microsoft’s trusted root store is the correct location for private CA certificates. Microsoft documentation
+
+##### macOS
+
+1. Open Keychain Access.
+1. Select the System keychain.
+1. Drag caddy-local-root.crt into it.
+1. Double-click the imported certificate.
+1. Expand Trust and set When using this certificate to Always Trust.
+1. Close and restart the browser.
+
+[Apple’s Keychain documentation](https://support.apple.com/en-ca/guide/keychain-access/kyca2431/mac)
+
 ## Rollback
 
 ### Manual operator action: choose and validate the image

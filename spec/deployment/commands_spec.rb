@@ -3,6 +3,105 @@ require "pathname"
 
 require_relative "../../lib/atlas/deployment"
 
+RSpec.describe Atlas::Deployment::ComposeReadinessWaiter do
+  let(:runner) { instance_double(Atlas::Deployment::CommandRunner) }
+  let(:status_command) { %w[docker compose ps --format json --all atlas] }
+  let(:logs_command) { %w[docker compose logs --no-color --tail 200 atlas] }
+
+  def compose_status(attributes)
+    attributes.to_json
+  end
+
+  it "uses bounded production defaults" do
+    expect(described_class::DEFAULT_TIMEOUT).to eq(120)
+    expect(described_class::DEFAULT_POLLING_INTERVAL).to eq(2)
+    expect(described_class::LOG_TAIL_LINES).to eq(200)
+  end
+
+  it "returns immediately when the running service is healthy" do
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      compose_status("ID" => "container-id", "Service" => "atlas", "State" => "running", "Health" => "healthy", "Status" => "Up 1 minute", "ExitCode" => 0)
+    )
+    sleeper = instance_double(Proc)
+    allow(sleeper).to receive(:call)
+
+    result = described_class.new(runner:, sleeper:).wait
+
+    expect(result).to be(true)
+    expect(runner).to have_received(:capture).once.with(status_command)
+    expect(sleeper).not_to have_received(:call)
+  end
+
+  it "polls a starting service until it becomes healthy" do
+    current_time = 0.0
+    clock = -> { current_time }
+    sleeper = ->(duration) { current_time += duration }
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      compose_status("ID" => "container-id", "Service" => "atlas", "State" => "running", "Health" => "starting", "Status" => "Up 1 second", "ExitCode" => 0),
+      compose_status("ID" => "container-id", "Service" => "atlas", "State" => "running", "Health" => "healthy", "Status" => "Up 3 seconds", "ExitCode" => 0)
+    )
+
+    expect(described_class.new(runner:, clock:, sleeper:).wait).to be(true)
+    expect(runner).to have_received(:capture).twice.with(status_command)
+  end
+
+  it "fails immediately for an unhealthy service with bounded diagnostics" do
+    logs = (1..250).map { |line| "log-#{line}" }.join("\n")
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      compose_status("ID" => "container-id", "Service" => "atlas", "State" => "running", "Health" => "unhealthy", "Status" => "Up 1 minute (unhealthy)", "ExitCode" => 0)
+    )
+    allow(runner).to receive(:capture).with(logs_command).and_return(logs)
+
+    error = nil
+    expect { described_class.new(runner:).wait }.to raise_error(Atlas::Deployment::CommandError) { |raised| error = raised }
+
+    expect(error.message).to include("unhealthy", '"ID":"container-id"', '"Health":"unhealthy"', "log-51", "log-250")
+    expect(error.message).not_to include("log-50")
+    expect(error.message.lines.grep(/^log-/).length).to eq(200)
+    expect(runner).to have_received(:capture).with(logs_command)
+  end
+
+  it "fails immediately when the container has exited" do
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      compose_status("ID" => "container-id", "Service" => "atlas", "State" => "exited", "Health" => "", "Status" => "Exited (1)", "ExitCode" => 1)
+    )
+    allow(runner).to receive(:capture).with(logs_command).and_return("exit log")
+
+    expect { described_class.new(runner:).wait }.to raise_error(Atlas::Deployment::CommandError, /exited.*ExitCode.*1.*exit log/m)
+  end
+
+  it "fails at the bounded deadline for a missing service" do
+    current_time = 0.0
+    clock = -> { current_time }
+    sleeper = ->(duration) { current_time += duration }
+    allow(runner).to receive(:capture).with(status_command).and_return("", "", "")
+    allow(runner).to receive(:capture).with(logs_command).and_return("last log")
+
+    error = nil
+    expect do
+      described_class.new(runner:, timeout: 4, polling_interval: 2, clock:, sleeper:).wait
+    end.to raise_error(Atlas::Deployment::CommandError) { |raised| error = raised }
+
+    expect(error.message).to include("timed out", "last log")
+    expect(runner).to have_received(:capture).exactly(3).times.with(status_command)
+  end
+
+  it "uses injected timeout, polling, clock, and sleeper values" do
+    current_time = 10.0
+    slept = []
+    clock = -> { current_time }
+    sleeper = ->(duration) { slept << duration; current_time += duration }
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      compose_status("State" => "running", "Health" => "starting"),
+      compose_status("State" => "running", "Health" => "healthy")
+    )
+
+    described_class.new(runner:, timeout: 1, polling_interval: 0.25, clock:, sleeper:).wait
+
+    expect(slept).to eq([ 0.25 ])
+  end
+end
+
 RSpec.describe Atlas::Deployment::DeployWorkflow do
   let(:runner) { instance_double(Atlas::Deployment::CommandRunner) }
   let(:verifier) { instance_double(Atlas::Deployment::Verifier, verify: true) }

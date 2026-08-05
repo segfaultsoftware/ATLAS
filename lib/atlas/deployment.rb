@@ -25,6 +25,131 @@ module Atlas
       end
     end
 
+    class ComposeReadinessWaiter
+      DEFAULT_TIMEOUT = 120
+      DEFAULT_POLLING_INTERVAL = 2
+      LOG_TAIL_LINES = 200
+
+      def initialize(
+        runner: CommandRunner.new,
+        timeout: DEFAULT_TIMEOUT,
+        polling_interval: DEFAULT_POLLING_INTERVAL,
+        clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) },
+        sleeper: ->(duration) { sleep(duration) }
+      )
+        @runner = runner
+        @timeout = timeout
+        @polling_interval = polling_interval
+        @clock = clock
+        @sleeper = sleeper
+        validate_configuration
+      end
+
+      def wait
+        deadline = clock.call + timeout
+        status = nil
+
+        loop do
+          status = compose_status
+          case readiness_state(status)
+          when :ready
+            return true
+          when :unhealthy
+            raise_failure("service is unhealthy", status)
+          when :exited
+            raise_failure("service has exited", status)
+          end
+
+          remaining = deadline - clock.call
+          break if remaining <= 0
+
+          sleeper.call([ polling_interval, remaining ].min)
+        end
+
+        raise_failure("timed out waiting for service to become healthy", status)
+      end
+
+      private
+
+      attr_reader :runner, :timeout, :polling_interval, :clock, :sleeper
+
+      def validate_configuration
+        raise ArgumentError, "timeout must be non-negative" if timeout.negative?
+        raise ArgumentError, "polling interval must be positive" unless polling_interval.positive?
+      end
+
+      def compose_status
+        @status_error = nil
+        raw_status = runner.capture(COMPOSE + [ "ps", "--format", "json", "--all", SERVICE ])
+        @raw_status = raw_status
+        statuses = raw_status.each_line.filter_map do |line|
+          line = line.strip
+          next if line.empty?
+
+          JSON.parse(line)
+        end
+        statuses.find { |status| status.is_a?(Hash) && status["Service"].to_s == SERVICE } || statuses.find { |status| status.is_a?(Hash) }
+      rescue JSON::ParserError => error
+        @status_error = "invalid JSON Lines output: #{error.message}"
+        nil
+      rescue CommandError => error
+        @status_error = error.message
+        @raw_status = ""
+        nil
+      end
+
+      def readiness_state(status)
+        return :pending unless status.is_a?(Hash)
+        return :exited if exited?(status)
+        return :unhealthy if status["Health"].to_s.downcase == "unhealthy"
+        return :ready if status["State"].to_s.downcase == "running" && status["Health"].to_s.downcase == "healthy"
+
+        :pending
+      end
+
+      def exited?(status)
+        return true if %w[dead exited].include?(status["State"].to_s.downcase)
+
+        exit_code = status["ExitCode"]
+        !exit_code.nil? && exit_code.to_i != 0
+      end
+
+      def raise_failure(reason, status)
+        raise CommandError, [
+          "Atlas readiness failed: #{reason}",
+          "Compose status: #{compose_status_details(status)}",
+          "Health details: #{health_details(status)}",
+          "Recent logs (last #{LOG_TAIL_LINES} lines):",
+          bounded_log_tail
+        ].join("\n")
+      end
+
+      def compose_status_details(status)
+        return "unavailable (#{@status_error})" if status.nil? && @status_error
+        return "unavailable" if status.nil?
+
+        bounded_lines(@raw_status.to_s)
+      end
+
+      def health_details(status)
+        return "unavailable" unless status.is_a?(Hash)
+
+        details = status.select { |key, _value| %w[Health State Status ExitCode].include?(key) }
+        details.empty? ? "unavailable" : JSON.generate(details)
+      end
+
+      def bounded_log_tail
+        logs = runner.capture(COMPOSE + [ "logs", "--no-color", "--tail", LOG_TAIL_LINES.to_s, SERVICE ])
+        bounded_lines(logs)
+      rescue CommandError => error
+        "unavailable (#{error.message})"
+      end
+
+      def bounded_lines(text)
+        text.to_s.lines.last(LOG_TAIL_LINES).join
+      end
+    end
+
     class Verifier
       def initialize(runner: CommandRunner.new, repository_root: Pathname(__dir__).join("../..").expand_path, env: ENV)
         @runner = runner

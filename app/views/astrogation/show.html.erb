@@ -3,20 +3,107 @@
 
 <main
   id="astrogation-system"
+  data-controller="astrogation-scene"
   data-astrogation-system
   data-astrogation-units="<%= Astrogation::System::DISTANCE_UNIT %>"
   data-astrogation-ship-x="<%= ship[:x] %>"
   data-astrogation-ship-y="<%= ship[:y] %>"
   data-astrogation-entities="<%= json_escape(@entities.to_json) %>"
 >
-  <header>
+  <header class="astrogation-header">
     <h1 id="astrogation-title">Astrogation</h1>
     <p>Deterministic overview of the Tejat system.</p>
   </header>
 
-  <section aria-labelledby="astrogation-entities-title">
-    <h2 id="astrogation-entities-title">System entities</h2>
-    <ul>
+  <section class="astrogation-scene" aria-labelledby="astrogation-title">
+    <div class="astrogation-scene__toolbar" aria-label="Astrogation controls">
+      <button type="button" data-action="astrogation-scene#zoomOut" aria-label="Zoom out">−</button>
+      <button type="button" data-action="astrogation-scene#zoomIn" aria-label="Zoom in">+</button>
+      <button type="button" data-action="astrogation-scene#recenter" aria-label="Center on ship">Center on ship</button>
+    </div>
+
+    <div
+      class="astrogation-scene__viewport"
+      data-astrogation-scene-target="viewport"
+      tabindex="0"
+      aria-label="Interactive Tejat system map. Drag to pan and use the mouse wheel or controls to zoom."
+    >
+      <svg
+        class="astrogation-map"
+        data-astrogation-scene-target="svg"
+        viewBox="0 0 100 100"
+        role="img"
+        aria-labelledby="astrogation-map-title astrogation-map-description"
+      >
+        <title id="astrogation-map-title">Tejat system map</title>
+        <desc id="astrogation-map-description">A deterministic two-dimensional overview of the Tejat system.</desc>
+
+        <g data-astrogation-scene-target="world" aria-hidden="true">
+          <g class="astrogation-orbits">
+            <% @entities.reject { |entity| entity[:kind] == "ship" }.each do |entity| %>
+              <circle
+                cx="0"
+                cy="0"
+                r="<%= entity[:distance_mkm] %>"
+                data-astrogation-orbit="<%= entity[:name] %>"
+              />
+            <% end %>
+          </g>
+
+          <g class="astrogation-markers">
+            <% @entities.each do |entity| %>
+              <% marker_class = "astrogation-marker astrogation-marker--#{entity[:kind]}" %>
+              <% if entity[:kind] == "planet" %>
+                <circle
+                  class="<%= marker_class %>"
+                  cx="<%= entity[:x] %>"
+                  cy="<%= entity[:y] %>"
+                  r="<%= entity[:name] == "Tejat A" ? 22 : entity[:name] == "Tejat B" ? 30 : 38 %>"
+                  data-astrogation-marker="<%= entity[:name] %>"
+                />
+              <% elsif entity[:kind] == "station" %>
+                <rect
+                  class="<%= marker_class %>"
+                  x="<%= entity[:x].to_f - 34 %>"
+                  y="<%= entity[:y].to_f - 34 %>"
+                  width="68"
+                  height="68"
+                  rx="12"
+                  data-astrogation-marker="<%= entity[:name] %>"
+                />
+              <% elsif entity[:kind] == "gate" %>
+                <path
+                  class="<%= marker_class %>"
+                  d="M 0 -42 L 42 0 L 0 42 L -42 0 Z"
+                  transform="translate(<%= entity[:x] %> <%= entity[:y] %>)"
+                  data-astrogation-marker="<%= entity[:name] %>"
+                />
+              <% else %>
+                <path
+                  class="<%= marker_class %>"
+                  d="M 0 -52 L 38 38 L 0 24 L -38 38 Z"
+                  transform="translate(<%= entity[:x] %> <%= entity[:y] %>)"
+                  data-astrogation-marker="<%= entity[:name] %>"
+                />
+              <% end %>
+            <% end %>
+          </g>
+        </g>
+
+        <g data-astrogation-scene-target="labels" class="astrogation-labels">
+          <% @entities.each do |entity| %>
+            <g data-astrogation-label="<%= entity[:name] %>">
+              <text x="0" y="0"><%= entity[:name] %></text>
+            </g>
+          <% end %>
+        </g>
+      </svg>
+    </div>
+
+    <p class="astrogation-scene__status" data-astrogation-scene-target="status" aria-live="polite"></p>
+
+    <ul class="visually-hidden" aria-labelledby="astrogation-entities-title">
+      <li id="astrogation-entities-title">System entities</li>
       <% @entities.each do |entity| %>
         <li
           data-astrogation-entity

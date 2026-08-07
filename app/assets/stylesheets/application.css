@@ -657,6 +657,166 @@ body {
   animation: status-indicator-spin 1s ease-in-out;
 }
 
+.astrogation-scene {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(88, 145, 175, 0.12), transparent 28rem),
+    #0d1118;
+  min-height: calc(100vh - 4.75rem);
+  padding: clamp(1.25rem, 4vw, 3rem);
+}
+
+.astrogation-header {
+  margin: 0 auto 1rem;
+  max-width: 82rem;
+}
+
+.astrogation-header h1 {
+  color: #f5d284;
+  font-size: clamp(2rem, 5vw, 4rem);
+  margin: 0;
+}
+
+.astrogation-header p {
+  color: #b8c4d0;
+  margin: 0.5rem 0 0;
+}
+
+.astrogation-scene__toolbar {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin: 0 auto 0.75rem;
+  max-width: 82rem;
+}
+
+.astrogation-scene__toolbar button {
+  appearance: none;
+  background: #182535;
+  border: 1px solid rgba(196, 224, 239, 0.38);
+  border-radius: 0.35rem;
+  color: #ecf4f8;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+}
+
+.astrogation-scene__toolbar button:first-child,
+.astrogation-scene__toolbar button:nth-child(2) {
+  font-size: 1.35rem;
+  line-height: 1;
+  width: 2.5rem;
+}
+
+.astrogation-scene__toolbar button:hover,
+.astrogation-scene__toolbar button:focus-visible {
+  background: #24405a;
+  outline: 2px solid #f5d284;
+  outline-offset: 2px;
+}
+
+.astrogation-scene__viewport {
+  aspect-ratio: 1;
+  background:
+    linear-gradient(rgba(196, 224, 239, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(196, 224, 239, 0.035) 1px, transparent 1px),
+    #081018;
+  background-size: 2.5rem 2.5rem;
+  border: 1px solid rgba(196, 224, 239, 0.25);
+  border-radius: 0.65rem;
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.32);
+  cursor: grab;
+  margin: 0 auto;
+  max-height: calc(100vh - 12rem);
+  max-width: 82rem;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.astrogation-scene__viewport[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.astrogation-map {
+  display: block;
+  height: 100%;
+  overflow: visible;
+  width: 100%;
+}
+
+.astrogation-orbits circle {
+  fill: none;
+  stroke: rgba(173, 211, 226, 0.25);
+  stroke-dasharray: 12 20;
+  stroke-width: 5;
+}
+
+.astrogation-marker {
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 5;
+}
+
+.astrogation-marker--planet {
+  fill: #3f91af;
+}
+
+.astrogation-marker--station {
+  fill: #e5b85b;
+}
+
+.astrogation-marker--gate {
+  fill: #a67cde;
+}
+
+.astrogation-marker--ship {
+  fill: #f06f3f;
+}
+
+.astrogation-labels {
+  fill: #f5f1e8;
+  font-size: 2.9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: #081018;
+  stroke-width: 0.85px;
+  text-anchor: middle;
+}
+
+.astrogation-labels g {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.astrogation-scene__status {
+  color: #9fb6c4;
+  font-size: 0.8rem;
+  margin: 0.65rem auto 0;
+  max-width: 82rem;
+  text-align: right;
+}
+
+@media (max-width: 38rem) {
+  .astrogation-scene {
+    padding: 1rem;
+  }
+
+  .astrogation-scene__toolbar {
+    justify-content: stretch;
+  }
+
+  .astrogation-scene__toolbar button:last-child {
+    flex: 1;
+  }
+
+  .astrogation-scene__viewport {
+    max-height: none;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

@@ -3,6 +3,127 @@ require "pathname"
 
 require_relative "../../lib/atlas/deployment"
 
+RSpec.describe Atlas::Deployment::ReadinessWaiter do
+  let(:runner) { instance_double(Atlas::Deployment::CommandRunner) }
+  let(:time) { [ 0.0 ] }
+  let(:sleep_calls) { [] }
+  let(:clock) { -> { time.first } }
+  let(:sleeper) do
+    ->(duration) do
+      sleep_calls << duration
+      time[0] += duration
+    end
+  end
+  let(:waiter) { described_class.new(runner:, clock:, sleeper:) }
+
+  def status_command
+    %w[docker compose ps --format json --all atlas]
+  end
+
+  def logs_command
+    %w[docker compose logs --no-color --tail 200 atlas]
+  end
+
+  def inspect_command
+    [ "docker", "inspect", "--format", "{{json .State.Health}}", "container-id" ]
+  end
+
+  def status(state:, health: nil, status: "", exit_code: 0, id: "container-id", service: "atlas")
+    {
+      "ID" => id,
+      "Service" => service,
+      "State" => state,
+      "Health" => health,
+      "Status" => status,
+      "ExitCode" => exit_code
+    }.compact.to_json
+  end
+
+  it "returns immediately when the service is running and healthy" do
+    allow(runner).to receive(:capture).with(status_command).and_return(status(state: "running", health: "healthy"))
+
+    expect(waiter.wait).to be(true)
+    expect(sleep_calls).to be_empty
+  end
+
+  it "polls a starting service until it becomes healthy" do
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      status(state: "running", health: "starting"),
+      status(state: "running", health: "healthy")
+    )
+
+    expect(waiter.wait).to be(true)
+    expect(sleep_calls).to eq([ 2 ])
+    expect(runner).to have_received(:capture).with(status_command).twice
+  end
+
+  it "parses JSON Lines and selects the atlas service" do
+    output = [
+      status(state: "running", health: "starting", service: "other"),
+      status(state: "running", health: "healthy")
+    ].join("\n")
+    allow(runner).to receive(:capture).with(status_command).and_return(output)
+
+    expect(waiter.wait).to be(true)
+  end
+
+  it "fails immediately for an unhealthy service with bounded diagnostics" do
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      status(state: "running", health: "unhealthy", status: "Up 2 minutes")
+    )
+    allow(runner).to receive(:capture).with(inspect_command).and_return('{"Status":"unhealthy"}')
+    allow(runner).to receive(:capture).with(logs_command).and_return("recent log\n")
+
+    expect { waiter.wait }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to include("unhealthy")
+      expect(error.message).to include("Up 2 minutes")
+      expect(error.message).to include("recent log")
+    end
+    expect(sleep_calls).to be_empty
+  end
+
+  it "fails immediately for an exited service" do
+    allow(runner).to receive(:capture).with(status_command).and_return(
+      status(state: "exited", status: "Exited (1)", exit_code: 1)
+    )
+    allow(runner).to receive(:capture).with(inspect_command).and_return('{"Status":"exited"}')
+    allow(runner).to receive(:capture).with(logs_command).and_return("crash log\n")
+
+    expect { waiter.wait }.to raise_error(Atlas::Deployment::CommandError, /exited.*ExitCode.*1.*crash log/m)
+    expect(sleep_calls).to be_empty
+  end
+
+  it "times out for an unavailable service with at most 200 log lines" do
+    allow(runner).to receive(:capture).with(status_command).and_return("")
+    allow(runner).to receive(:capture).with(logs_command).and_return((1..250).map { |line| "line #{line}" }.join("\n"))
+    waiter = described_class.new(runner:, timeout: 5, poll_interval: 2, clock:, sleeper:)
+
+    expect { waiter.wait }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to include("timed out")
+      expect(error.message).to include("line 200")
+      expect(error.message).not_to include("line 201")
+    end
+    expect(sleep_calls).to eq([ 2, 2, 1 ])
+  end
+
+  it "uses configurable timeout and polling defaults" do
+    expect(described_class::DEFAULT_TIMEOUT).to eq(120)
+    expect(described_class::DEFAULT_POLL_INTERVAL).to eq(2)
+
+    expect { described_class.new(runner:, timeout: -1) }.to raise_error(ArgumentError)
+    expect { described_class.new(runner:, poll_interval: 0) }.to raise_error(ArgumentError)
+  end
+
+  it "includes a command failure in the bounded timeout diagnostic" do
+    command_error = Atlas::Deployment::CommandError.new("status unavailable")
+    allow(runner).to receive(:capture).with(status_command).and_raise(command_error)
+    allow(runner).to receive(:capture).with(logs_command).and_return("logs\n")
+    waiter = described_class.new(runner:, timeout: 0, clock:, sleeper:)
+
+    expect { waiter.wait }.to raise_error(Atlas::Deployment::CommandError, /status unavailable.*logs/m)
+  end
+end
+
 RSpec.describe Atlas::Deployment::DeployWorkflow do
   let(:runner) { instance_double(Atlas::Deployment::CommandRunner) }
   let(:verifier) { instance_double(Atlas::Deployment::Verifier, verify: true) }

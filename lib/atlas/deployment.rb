@@ -25,6 +25,139 @@ module Atlas
       end
     end
 
+    class ReadinessWaiter
+      DEFAULT_TIMEOUT = 120
+      DEFAULT_POLL_INTERVAL = 2
+      MAX_LOG_LINES = 200
+      MAX_DIAGNOSTIC_BYTES = 16_384
+      STATUS_FIELDS = %w[ID Service State Health Status ExitCode].freeze
+
+      def initialize(
+        runner: CommandRunner.new,
+        timeout: DEFAULT_TIMEOUT,
+        poll_interval: DEFAULT_POLL_INTERVAL,
+        clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) },
+        sleeper: ->(duration) { sleep(duration) }
+      )
+        raise ArgumentError, "timeout must be non-negative" if timeout.to_f.negative?
+        raise ArgumentError, "poll interval must be positive" unless poll_interval.to_f.positive?
+
+        @runner = runner
+        @timeout = timeout
+        @poll_interval = poll_interval
+        @clock = clock
+        @sleeper = sleeper
+      end
+
+      def wait
+        deadline = clock.call + timeout
+        latest_status = nil
+        status_error = nil
+
+        loop do
+          begin
+            latest_status = parse_status(runner.capture(status_command))
+            status_error = nil
+          rescue CommandError => error
+            latest_status = nil
+            status_error = error
+          end
+
+          case readiness_state(latest_status)
+          when :ready
+            return true
+          when :unhealthy, :exited
+            raise failure(readiness_state(latest_status), latest_status, status_error)
+          end
+
+          remaining = deadline - clock.call
+          break if remaining <= 0
+
+          sleeper.call([ poll_interval, remaining ].min)
+        end
+
+        raise failure(:timeout, latest_status, status_error)
+      end
+
+      private
+
+      attr_reader :runner, :timeout, :poll_interval, :clock, :sleeper
+
+      def status_command
+        COMPOSE + [ "ps", "--format", "json", "--all", SERVICE ]
+      end
+
+      def logs_command
+        COMPOSE + [ "logs", "--no-color", "--tail", MAX_LOG_LINES.to_s, SERVICE ]
+      end
+
+      def inspect_command(container_id)
+        [ "docker", "inspect", "--format", "{{json .State.Health}}", container_id ]
+      end
+
+      def parse_status(output)
+        records = output.to_s.lines.filter_map do |line|
+          next if line.strip.empty?
+
+          parsed = JSON.parse(line)
+          parsed.is_a?(Array) ? parsed : [ parsed ]
+        end.flatten
+        return if records.empty?
+
+        records.find { |record| record.is_a?(Hash) && record["Service"].to_s == SERVICE } || records.first
+      rescue JSON::ParserError => error
+        raise CommandError, "invalid Compose status JSON: #{error.message}"
+      end
+
+      def readiness_state(status)
+        return :unavailable unless status.is_a?(Hash)
+
+        state = status["State"].to_s.downcase
+        health = status["Health"].to_s.downcase
+        return :ready if state == "running" && health == "healthy"
+        return :unhealthy if health == "unhealthy"
+        return :exited if %w[exited dead].include?(state)
+
+        :waiting
+      end
+
+      def failure(reason, status, status_error)
+        reason_label = reason == :timeout ? "timed out" : reason
+        details = [ "reason=#{reason_label}" ]
+        details << "status=#{status_summary(status)}" if status
+        details << "status_error=#{status_error.message}" if status_error
+        details << "health=#{health_detail(status)}" if status
+        details << "logs=#{logs_detail}"
+        CommandError.new("Compose readiness failed: #{details.join("; ")}")
+      end
+
+      def status_summary(status)
+        STATUS_FIELDS.filter_map do |field|
+          value = status[field]
+          "#{field}=#{value}" unless value.nil?
+        end.join(", ")
+      end
+
+      def health_detail(status)
+        container_id = status["ID"].to_s
+        return status["Health"].to_s unless container_id != ""
+
+        bounded_lines(runner.capture(inspect_command(container_id)))
+      rescue CommandError => error
+        status["Health"].to_s.empty? ? "unavailable (#{error.message})" : status["Health"].to_s
+      end
+
+      def logs_detail
+        bounded_lines(runner.capture(logs_command))
+      rescue CommandError => error
+        "unavailable (#{error.message})"
+      end
+
+      def bounded_lines(value)
+        value.to_s.lines.first(MAX_LOG_LINES).join.byteslice(0, MAX_DIAGNOSTIC_BYTES).to_s.scrub
+      end
+    end
+
     class Verifier
       def initialize(runner: CommandRunner.new, repository_root: Pathname(__dir__).join("../..").expand_path, env: ENV)
         @runner = runner

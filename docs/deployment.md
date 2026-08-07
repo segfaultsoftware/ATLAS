@@ -199,9 +199,33 @@ bin/deploy restart
 ```
 
 The workflow records a landing-page and database-storage marker before the
-restart and compares both after verification. An unexpected change is a
-deployment failure; stop and investigate the storage mount and database before
-retrying.
+restart and compares both after verification. It then waits for the Compose
+healthcheck to report the `atlas` container running and healthy before it
+probes HTTPS. This avoids treating the short Rails/Puma startup window, or a
+transient reverse-proxy `502`, as a failed deployment.
+
+The readiness waiter polls every 2 seconds and has a 120-second deadline by
+default. These values are configurable through the deployment workflow's
+construction seam for automated callers; the normal `bin/deploy restart`
+command uses the defaults. The wait is health-based rather than an
+unconditional fixed sleep. If the container becomes unhealthy, exits, or does
+not become ready before the deadline, the command stops before HTTPS
+verification and reports bounded, redacted status, health, command-error, and
+recent-log diagnostics.
+
+For local operator inspection after a readiness failure, use the same bounded
+Compose views without copying their output into tickets or chat:
+
+```sh
+docker compose ps --format json --all atlas
+docker compose logs --no-color --tail=200 atlas
+```
+
+Treat raw container output as sensitive even though deployment failure messages
+redact known secret values. Do not print or paste the Rails master key, secret
+files, credential-like values, or unrestricted logs. An unexpected persistence
+marker change is also a deployment failure; stop and investigate the storage
+mount and database before retrying.
 
 ### Repository command: prepare and seed explicitly
 

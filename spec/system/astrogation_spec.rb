@@ -18,6 +18,9 @@ RSpec.describe "Astrogation", type: :system, system: true do
 
     expect(page).to have_css("body > header.site-header")
     expect(page).to have_css("#astrogation-system[data-astrogation-system]")
+    expect(page).to have_css(".astrogation-star[data-astrogation-star][data-star-class='M']")
+    expect(page).to have_css(".astrogation-star__core[cx='0'][cy='0'][r='0.7']")
+    expect(page).to have_css("[data-astrogation-star-description][data-star-class='M']", visible: :all)
     expect(page).to have_css("[data-astrogation-label='Ship']")
     expect(page).to have_css("[data-astrogation-label='Tejat C']")
     expect(page.evaluate_script("document.querySelector('#astrogation-system').dataset.astrogationCenterX").to_f)

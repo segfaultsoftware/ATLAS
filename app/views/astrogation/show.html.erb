@@ -8,6 +8,9 @@
   data-astrogation-units="<%= Astrogation::System::DISTANCE_UNIT %>"
   data-astrogation-ship-x="<%= ship[:x] %>"
   data-astrogation-ship-y="<%= ship[:y] %>"
+  data-astrogation-star-class="<%= @star_class %>"
+  data-astrogation-star-color="<%= @star_properties[:color] %>"
+  data-astrogation-star-brightness="<%= @star_properties[:brightness] %>"
   data-astrogation-entities="<%= json_escape(@entities.to_json) %>"
 >
   <header class="astrogation-header">
@@ -51,6 +54,20 @@
           </g>
 
           <g class="astrogation-markers">
+            <g
+              class="astrogation-star"
+              data-astrogation-star
+              data-star-class="<%= @star_class %>"
+              data-star-color="<%= @star_properties[:color] %>"
+              data-star-brightness="<%= @star_properties[:brightness] %>"
+              aria-labelledby="astrogation-star-title"
+              style="--astrogation-star-color: <%= @star_properties[:color] %>; --astrogation-star-brightness: <%= @star_properties[:brightness] %>;"
+            >
+              <title id="astrogation-star-title">Central <%= @star_class %>-class star</title>
+              <circle class="astrogation-star__halo" cx="0" cy="0" r="18" aria-hidden="true" />
+              <circle class="astrogation-star__core" cx="0" cy="0" r="0.7" />
+            </g>
+
             <% @entities.each do |entity| %>
               <% marker_class = "astrogation-marker astrogation-marker--#{entity[:kind]}" %>
               <% if entity[:kind] == "planet" %>
@@ -115,6 +132,16 @@
           data-angle-degrees="<%= entity[:angle_degrees] %>"
         ><%= entity[:name] %></li>
       <% end %>
+    </ul>
+
+    <ul class="visually-hidden" aria-labelledby="astrogation-star-description-title">
+      <li id="astrogation-star-description-title">Central star</li>
+      <li
+        data-astrogation-star-description
+        data-star-class="<%= @star_class %>"
+        data-star-color="<%= @star_properties[:color] %>"
+        data-star-brightness="<%= @star_properties[:brightness] %>"
+      >Central <%= @star_class %>-class star with color <%= @star_properties[:color] %> and brightness <%= @star_properties[:brightness] %>.</li>
     </ul>
   </section>
 </main>

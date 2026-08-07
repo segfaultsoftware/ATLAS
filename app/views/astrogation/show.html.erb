@@ -8,6 +8,9 @@
   data-astrogation-units="<%= Astrogation::System::DISTANCE_UNIT %>"
   data-astrogation-ship-x="<%= ship[:x] %>"
   data-astrogation-ship-y="<%= ship[:y] %>"
+  data-astrogation-star-class="<%= @star_class %>"
+  data-astrogation-star-color="<%= @star_properties[:color] %>"
+  data-astrogation-star-brightness="<%= @star_properties[:brightness] %>"
   data-astrogation-entities="<%= json_escape(@entities.to_json) %>"
 >
   <header class="astrogation-header">

@@ -3,5 +3,7 @@ class AstrogationController < ApplicationController
 
   def show
     @entities = Astrogation::System.entities
+    @star_class = Astrogation::StarCatalog.normalize(params[:starclass])
+    @star_properties = Astrogation::StarCatalog.lookup(@star_class)
   end
 end

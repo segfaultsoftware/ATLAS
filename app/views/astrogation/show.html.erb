@@ -1,0 +1,33 @@
+<% content_for :title, "Astrogation | ATLAS" %>
+<% ship = @entities.find { |entity| entity[:kind] == "ship" } %>
+
+<main
+  id="astrogation-system"
+  data-astrogation-system
+  data-astrogation-units="<%= Astrogation::System::DISTANCE_UNIT %>"
+  data-astrogation-ship-x="<%= ship[:x] %>"
+  data-astrogation-ship-y="<%= ship[:y] %>"
+  data-astrogation-entities="<%= json_escape(@entities.to_json) %>"
+>
+  <header>
+    <h1 id="astrogation-title">Astrogation</h1>
+    <p>Deterministic overview of the Tejat system.</p>
+  </header>
+
+  <section aria-labelledby="astrogation-entities-title">
+    <h2 id="astrogation-entities-title">System entities</h2>
+    <ul>
+      <% @entities.each do |entity| %>
+        <li
+          data-astrogation-entity
+          data-name="<%= entity[:name] %>"
+          data-kind="<%= entity[:kind] %>"
+          data-x="<%= entity[:x] %>"
+          data-y="<%= entity[:y] %>"
+          data-distance-mkm="<%= entity[:distance_mkm] %>"
+          data-angle-degrees="<%= entity[:angle_degrees] %>"
+        ><%= entity[:name] %></li>
+      <% end %>
+    </ul>
+  </section>
+</main>

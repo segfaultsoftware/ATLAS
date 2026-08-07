@@ -27,6 +27,22 @@ RSpec.describe "Astrogation", type: :system, system: true do
       .to be_within(0.001).of(page.evaluate_script("document.querySelector('#astrogation-system').dataset.astrogationShipX").to_f)
   end
 
+  it "keeps every entity label above its marker with a screen-space gap" do
+    visit "/astrogation"
+
+    expect_entity_labels_above_markers
+
+    page.find("button[aria-label='Zoom in']").click
+    expect_entity_labels_above_markers
+
+    viewport = page.find(".astrogation-scene__viewport")
+    page.driver.browser.action.move_to(viewport.native).click_and_hold.move_by(80, 0).release.perform
+    expect_entity_labels_above_markers
+
+    page.driver.browser.manage.window.resize_to(640, 720)
+    expect_entity_labels_above_markers
+  end
+
   it "supports zoom, pointer pan, recentering, and screen-sized labels" do
     visit "/astrogation"
     viewport = page.find(".astrogation-scene__viewport")
@@ -80,7 +96,11 @@ RSpec.describe "Astrogation", type: :system, system: true do
       JSON.stringify({
         entities: document.querySelector('#astrogation-system').dataset.astrogationEntities,
         markers: [...document.querySelectorAll('[data-astrogation-marker]')].map((marker) => marker.outerHTML),
-        labels: [...document.querySelectorAll('[data-astrogation-label]')].map((label) => label.outerHTML)
+        labels: [...document.querySelectorAll('[data-astrogation-label]')].map((label) => {
+          const staticLabel = label.cloneNode(true)
+          staticLabel.removeAttribute('transform')
+          return staticLabel.outerHTML
+        })
       })
     JAVASCRIPT
 
@@ -91,8 +111,44 @@ RSpec.describe "Astrogation", type: :system, system: true do
       JSON.stringify({
         entities: document.querySelector('#astrogation-system').dataset.astrogationEntities,
         markers: [...document.querySelectorAll('[data-astrogation-marker]')].map((marker) => marker.outerHTML),
-        labels: [...document.querySelectorAll('[data-astrogation-label]')].map((label) => label.outerHTML)
+        labels: [...document.querySelectorAll('[data-astrogation-label]')].map((label) => {
+          const staticLabel = label.cloneNode(true)
+          staticLabel.removeAttribute('transform')
+          return staticLabel.outerHTML
+        })
       })
     JAVASCRIPT
+  end
+
+  private
+
+  def expect_entity_labels_above_markers
+    geometries = page.evaluate_script(<<~JAVASCRIPT)
+      (() => {
+        const labels = new Map(
+          [...document.querySelectorAll('[data-astrogation-label]')].map((label) => [label.dataset.astrogationLabel, label])
+        )
+
+        return [...document.querySelectorAll('[data-astrogation-marker]')].map((marker) => {
+          const label = labels.get(marker.dataset.astrogationMarker)
+          const markerRect = marker.getBoundingClientRect()
+          const labelRect = label.getBoundingClientRect()
+
+          return {
+            name: marker.dataset.astrogationMarker,
+            topGap: markerRect.top - labelRect.bottom,
+            centerDelta: ((labelRect.left + labelRect.right) / 2) - ((markerRect.left + markerRect.right) / 2)
+          }
+        })
+      })()
+    JAVASCRIPT
+
+    expect(geometries.map { |geometry| geometry["name"] }).to contain_exactly(
+      "Tejat A", "Tejat B", "Tejat C", "Ketrak Station", "Gate Alpha", "Gate Beta", "Ship"
+    )
+    geometries.each do |geometry|
+      expect(geometry["topGap"]).to be_within(0.5).of(4)
+      expect(geometry["centerDelta"]).to be_within(0.5).of(0)
+    end
   end
 end

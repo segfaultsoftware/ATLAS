@@ -23,21 +23,83 @@ module Atlas
         message = stderr.to_s.strip
         raise CommandError, "command failed (#{status.exitstatus}): #{command.shelljoin}#{message.empty? ? "" : " — #{message}"}"
       end
+
+      def capture_bounded(command, max_bytes:, max_lines:)
+        raise ArgumentError, "max bytes must be positive" unless max_bytes.to_i.positive?
+        raise ArgumentError, "max lines must be positive" unless max_lines.to_i.positive?
+
+        stdin, stdout, stderr, wait_thread = Open3.popen3(*command)
+        stdin.close
+        outputs = { stdout => +"", stderr => +"" }
+        streams = outputs.keys
+
+        until streams.empty?
+          readable = IO.select(streams)&.first || []
+          readable.each do |stream|
+            begin
+              chunk = stream.read_nonblock(16_384)
+              next unless chunk.is_a?(String)
+
+              output = outputs.fetch(stream)
+              remaining = max_bytes - output.bytesize
+              output << chunk.byteslice(0, remaining) if remaining.positive?
+            rescue IO::WaitReadable
+              next
+            rescue EOFError
+              stream.close unless stream.closed?
+              streams.delete(stream)
+            rescue IOError
+              streams.delete(stream)
+            end
+          end
+        end
+
+        status = wait_thread.value
+        return bounded_output(outputs.fetch(stdout), max_bytes:, max_lines:) if status.success?
+
+        message = bounded_output(outputs.fetch(stderr), max_bytes:, max_lines:).strip
+        raise CommandError, "command failed (#{status.exitstatus}): #{command.shelljoin}#{message.empty? ? "" : " — #{message}"}"
+      ensure
+        stdin.close unless stdin.nil? || stdin.closed?
+        [ stdout, stderr ].compact.each { |stream| stream.close unless stream.closed? }
+      end
+
+      private
+
+      def bounded_output(value, max_bytes:, max_lines:)
+        value.to_s.lines.first(max_lines).join.byteslice(0, max_bytes).to_s.scrub
+      end
     end
 
     class ReadinessWaiter
       DEFAULT_TIMEOUT = 120
       DEFAULT_POLL_INTERVAL = 2
       MAX_LOG_LINES = 200
-      MAX_DIAGNOSTIC_BYTES = 16_384
+      MAX_STATUS_LINES = 20
+      MAX_STATUS_BYTES = 4_096
+      MAX_STATUS_VALUE_BYTES = 1_024
+      MAX_HEALTH_LINES = 50
+      MAX_HEALTH_BYTES = 8_192
+      MAX_LOG_BYTES = 16_384
+      MAX_ERROR_LINES = 20
+      MAX_ERROR_BYTES = 4_096
+      MAX_FAILURE_LINES = 300
+      MAX_FAILURE_BYTES = 32_768
       STATUS_FIELDS = %w[ID Service State Health Status ExitCode].freeze
+      REDACTION = "[REDACTED]"
+      SENSITIVE_KEY = /(?:rails[_ -]?master[_ -]?key|password|passwd|secret(?:[_ -]?key(?:[_ -]?base)?|[_ -]?base)?|token|api[_ -]?key|access[_ -]?key|private[_ -]?key|credential|authorization)/i
+      SENSITIVE_BLOCK = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*[:=][ \t]*)(?<value>\|[ \t]*\r?\n(?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/im
+      SENSITIVE_ASSIGNMENT = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*[:=][ \t]*)(?<value>"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]\r\n]+)/im
+      BEARER_VALUE = /(?<prefix>\b(?:authorization|proxy-authorization)[ \t]*[:=][ \t]*Bearer[ \t]+)(?<value>[^\s\r\n]+)/i
+      PEM_VALUE = /-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----/im
 
       def initialize(
         runner: CommandRunner.new,
         timeout: DEFAULT_TIMEOUT,
         poll_interval: DEFAULT_POLL_INTERVAL,
         clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) },
-        sleeper: ->(duration) { sleep(duration) }
+        sleeper: ->(duration) { sleep(duration) },
+        secret_values: []
       )
         raise ArgumentError, "timeout must be non-negative" if timeout.to_f.negative?
         raise ArgumentError, "poll interval must be positive" unless poll_interval.to_f.positive?
@@ -47,6 +109,10 @@ module Atlas
         @poll_interval = poll_interval
         @clock = clock
         @sleeper = sleeper
+        @secret_values = Array(secret_values).filter_map do |value|
+          value = value.to_s
+          value unless value.empty?
+        end.freeze
       end
 
       def wait
@@ -56,7 +122,7 @@ module Atlas
 
         loop do
           begin
-            latest_status = parse_status(runner.capture(status_command))
+            latest_status = parse_status(capture_bounded(status_command, lines: MAX_STATUS_LINES, bytes: MAX_STATUS_BYTES))
             status_error = nil
           rescue CommandError => error
             latest_status = nil
@@ -81,7 +147,7 @@ module Atlas
 
       private
 
-      attr_reader :runner, :timeout, :poll_interval, :clock, :sleeper
+      attr_reader :runner, :timeout, :poll_interval, :clock, :sleeper, :secret_values
 
       def status_command
         COMPOSE + [ "ps", "--format", "json", "--all", SERVICE ]
@@ -125,36 +191,65 @@ module Atlas
         reason_label = reason == :timeout ? "timed out" : reason
         details = [ "reason=#{reason_label}" ]
         details << "status=#{status_summary(status)}" if status
-        details << "status_error=#{status_error.message}" if status_error
+        details << "status_error=#{bounded_diagnostic(status_error.message, lines: MAX_ERROR_LINES, bytes: MAX_ERROR_BYTES)}" if status_error
         details << "health=#{health_detail(status)}" if status
         details << "logs=#{logs_detail}"
-        CommandError.new("Compose readiness failed: #{details.join("; ")}")
+        CommandError.new(
+          bounded_diagnostic(
+            "Compose readiness failed: #{details.join("; ")}",
+            lines: MAX_FAILURE_LINES,
+            bytes: MAX_FAILURE_BYTES
+          )
+        )
       end
 
       def status_summary(status)
-        STATUS_FIELDS.filter_map do |field|
+        summary = STATUS_FIELDS.filter_map do |field|
           value = status[field]
-          "#{field}=#{value}" unless value.nil?
+          next if value.nil?
+
+          "#{field}=#{bounded_diagnostic(value, lines: 1, bytes: MAX_STATUS_VALUE_BYTES)}"
         end.join(", ")
+        bounded_diagnostic(summary, lines: MAX_STATUS_LINES, bytes: MAX_STATUS_BYTES)
       end
 
       def health_detail(status)
         container_id = status["ID"].to_s
-        return status["Health"].to_s unless container_id != ""
+        return bounded_diagnostic(status["Health"], lines: MAX_HEALTH_LINES, bytes: MAX_HEALTH_BYTES) unless container_id != ""
 
-        bounded_lines(runner.capture(inspect_command(container_id)))
+        bounded_diagnostic(capture_bounded(inspect_command(container_id), lines: MAX_HEALTH_LINES, bytes: MAX_HEALTH_BYTES), lines: MAX_HEALTH_LINES, bytes: MAX_HEALTH_BYTES)
       rescue CommandError => error
-        status["Health"].to_s.empty? ? "unavailable (#{error.message})" : status["Health"].to_s
+        detail = status["Health"].to_s.empty? ? "unavailable (#{error.message})" : status["Health"]
+        bounded_diagnostic(detail, lines: MAX_HEALTH_LINES, bytes: MAX_HEALTH_BYTES)
       end
 
       def logs_detail
-        bounded_lines(runner.capture(logs_command))
+        bounded_diagnostic(capture_bounded(logs_command, lines: MAX_LOG_LINES, bytes: MAX_LOG_BYTES), lines: MAX_LOG_LINES, bytes: MAX_LOG_BYTES)
       rescue CommandError => error
-        "unavailable (#{error.message})"
+        bounded_diagnostic("unavailable (#{error.message})", lines: MAX_LOG_LINES, bytes: MAX_LOG_BYTES)
       end
 
-      def bounded_lines(value)
-        value.to_s.lines.first(MAX_LOG_LINES).join.byteslice(0, MAX_DIAGNOSTIC_BYTES).to_s.scrub
+      def bounded_diagnostic(value, lines:, bytes:)
+        sanitized = sanitize(value)
+        sanitized.lines.first(lines).join.byteslice(0, bytes).to_s.scrub
+      end
+
+      def capture_bounded(command, lines:, bytes:)
+        if runner.respond_to?(:capture_bounded)
+          runner.capture_bounded(command, max_bytes: bytes, max_lines: lines)
+        else
+          runner.capture(command)
+        end
+      end
+
+      def sanitize(value)
+        sanitized = value.to_s.dup
+        secret_values.each { |secret| sanitized.gsub!(secret, REDACTION) }
+        sanitized.gsub!(PEM_VALUE, REDACTION)
+        sanitized.gsub!(SENSITIVE_BLOCK) { "#{Regexp.last_match[:prefix]}#{REDACTION}" }
+        sanitized.gsub!(BEARER_VALUE) { "#{Regexp.last_match[:prefix]}#{REDACTION}" }
+        sanitized.gsub!(SENSITIVE_ASSIGNMENT) { "#{Regexp.last_match[:prefix]}#{REDACTION}" }
+        sanitized
       end
     end
 
@@ -267,6 +362,7 @@ module Atlas
         readiness_poll_interval: ReadinessWaiter::DEFAULT_POLL_INTERVAL,
         readiness_clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) },
         readiness_sleeper: ->(duration) { sleep(duration) },
+        readiness_secret_values: nil,
         env: ENV,
         repository_root: Pathname(__dir__).join("../..").expand_path
       )
@@ -278,7 +374,8 @@ module Atlas
           timeout: readiness_timeout,
           poll_interval: readiness_poll_interval,
           clock: readiness_clock,
-          sleeper: readiness_sleeper
+          sleeper: readiness_sleeper,
+          secret_values: readiness_secret_values || [ env.fetch("RAILS_MASTER_KEY", "") ]
         )
         @repository_root = Pathname(repository_root)
       end

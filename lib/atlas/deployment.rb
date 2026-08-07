@@ -353,6 +353,7 @@ module Atlas
 
     class DeployWorkflow
       VALID_ACTIONS = %w[fresh update restart seed rollback].freeze
+      DEFAULT_RAILS_MASTER_KEY_FILE = "/srv/platform/secrets/atlas/rails_master_key"
 
       def initialize(
         runner: CommandRunner.new,
@@ -375,7 +376,7 @@ module Atlas
           poll_interval: readiness_poll_interval,
           clock: readiness_clock,
           sleeper: readiness_sleeper,
-          secret_values: readiness_secret_values || [ env.fetch("RAILS_MASTER_KEY", "") ]
+          secret_values: readiness_secret_values || readiness_secret_values_from_environment
         )
         @repository_root = Pathname(repository_root)
       end
@@ -422,12 +423,22 @@ module Atlas
         compose("exec", "--no-TTY", SERVICE, "./bin/docker-entrypoint", "./bin/rails", task)
       end
 
+      def readiness_secret_values_from_environment
+        values = [ env.fetch("RAILS_MASTER_KEY", "") ]
+        secret_path = env.fetch("RAILS_MASTER_KEY_FILE", DEFAULT_RAILS_MASTER_KEY_FILE)
+        values << File.read(secret_path).strip if File.file?(secret_path)
+        values
+      rescue Errno::EACCES, Errno::EISDIR, Errno::ENOENT
+        values
+      end
+
       def run_deployment
         compose("config", "--quiet")
         compose("build", SERVICE)
         compose("up", "--detach", SERVICE)
         rails_task("db:prepare")
         rails_task("db:seed")
+        readiness_waiter.wait
         verifier.verify
       end
 
@@ -464,6 +475,7 @@ module Atlas
 
         runner.run([ "docker", "tag", image_ref, image_name ])
         compose("up", "--detach", "--no-build", SERVICE)
+        readiness_waiter.wait
         verifier.verify
       end
 

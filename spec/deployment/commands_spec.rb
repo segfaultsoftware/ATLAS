@@ -1,6 +1,7 @@
 require "json"
 require "pathname"
 require "rbconfig"
+require "tempfile"
 
 require_relative "../../lib/atlas/deployment"
 
@@ -267,6 +268,25 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     expect(verifier).to have_received(:verify)
   end
 
+  it "waits for readiness before verifying a fresh deployment" do
+    events = []
+    allow(runner).to receive(:run) { |command| events << command }
+    allow(readiness_waiter).to receive(:wait) { events << :readiness }
+    allow(verifier).to receive(:verify) { events << :verify }
+
+    workflow.run("fresh")
+
+    expect(events).to eq([
+      %w[docker compose config --quiet],
+      %w[docker compose build atlas],
+      %w[docker compose up --detach atlas],
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare],
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed],
+      :readiness,
+      :verify
+    ])
+  end
+
   it "provides an update action with the same safe preparation sequence" do
     workflow.run("update")
 
@@ -276,6 +296,52 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     expect(runner).to have_received(:run).with(%w[docker compose up --detach atlas])
     expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare])
     expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed])
+  end
+
+  it "waits for readiness before verifying an update" do
+    events = []
+    allow(runner).to receive(:run) { |command| events << command }
+    allow(runner).to receive(:capture) { events << :capture; "marker\n" }
+    allow(readiness_waiter).to receive(:wait) { events << :readiness }
+    allow(verifier).to receive(:verify) { events << :verify }
+
+    workflow.run("update")
+
+    expect(events).to eq([
+      :capture,
+      %w[docker compose config --quiet],
+      %w[docker compose build atlas],
+      %w[docker compose up --detach atlas],
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare],
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed],
+      :readiness,
+      :verify,
+      :capture
+    ])
+  end
+
+  it "does not verify a fresh deployment when readiness fails" do
+    readiness_error = Atlas::Deployment::CommandError.new("Compose readiness failed: timed out")
+    allow(readiness_waiter).to receive(:wait).and_raise(readiness_error)
+
+    expect { workflow.run("fresh") }.to raise_error(readiness_error)
+    expect(verifier).not_to have_received(:verify)
+  end
+
+  it "does not verify an update when readiness fails" do
+    readiness_error = Atlas::Deployment::CommandError.new("Compose readiness failed: timed out")
+    allow(readiness_waiter).to receive(:wait).and_raise(readiness_error)
+
+    expect { workflow.run("update") }.to raise_error(readiness_error)
+    expect(verifier).not_to have_received(:verify)
+    expect(runner).to have_received(:capture).once
+  end
+
+  it "leaves seed without a readiness wait" do
+    workflow.run("seed")
+
+    expect(readiness_waiter).not_to have_received(:wait)
+    expect(verifier).to have_received(:verify)
   end
 
   it "checks persistence across an explicit restart" do
@@ -332,6 +398,37 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     expect(verifier).not_to have_received(:verify)
   end
 
+  it "redacts the configured Rails master key file from default readiness diagnostics" do
+    secret = Tempfile.new("atlas-master-key")
+    secret.write("file-master-key\n")
+    secret.flush
+    environment = { "RAILS_MASTER_KEY_FILE" => secret.path, "ATLAS_HOST" => "atlas.home.arpa" }
+    allow(runner).to receive(:capture_bounded) do |command, max_bytes:, max_lines:|
+      runner.capture(command)
+    end
+    allow(runner).to receive(:capture) do |command|
+      case command
+      when %w[docker compose ps --format json --all atlas]
+        { "ID" => "container-id", "Service" => "atlas", "State" => "running", "Health" => "unhealthy" }.to_json
+      when [ "docker", "inspect", "--format", "{{json .State.Health}}", "container-id" ]
+        "unhealthy\n"
+      when %w[docker compose logs --no-color --tail 200 atlas]
+        "file-master-key\n"
+      else
+        "marker\n"
+      end
+    end
+    workflow = described_class.new(runner:, verifier:, env: environment, readiness_timeout: 0)
+
+    expect { workflow.run("fresh") }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to include("[REDACTED]")
+      expect(error.message).not_to include("file-master-key")
+    end
+    expect(verifier).not_to have_received(:verify)
+  ensure
+    secret&.close!
+  end
+
   it "fails when the restart persistence marker changes" do
     allow(runner).to receive(:capture).and_return("before\n", "after\n")
 
@@ -354,6 +451,38 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     expect(runner).to have_received(:run).with([ "docker", "image", "inspect", "atlas-atlas:previous" ])
     expect(runner).to have_received(:run).with([ "docker", "tag", "atlas-atlas:previous", "atlas-atlas" ])
     expect(runner).to have_received(:run).with(%w[docker compose up --detach --no-build atlas])
+  end
+
+  it "waits for readiness before verifying a rollback" do
+    events = []
+    allow(runner).to receive(:run) { |command| events << command }
+    allow(runner).to receive(:capture) do |command|
+      events << :capture
+      command == %w[docker compose config --images] ? "atlas-atlas\n" : "marker\n"
+    end
+    allow(readiness_waiter).to receive(:wait) { events << :readiness }
+    allow(verifier).to receive(:verify) { events << :verify }
+
+    workflow.run("rollback", arguments: [ "atlas-atlas:previous", "--confirm" ])
+
+    expect(events).to eq([
+      %w[docker compose config --quiet],
+      [ "docker", "image", "inspect", "atlas-atlas:previous" ],
+      :capture,
+      [ "docker", "tag", "atlas-atlas:previous", "atlas-atlas" ],
+      %w[docker compose up --detach --no-build atlas],
+      :readiness,
+      :verify
+    ])
+  end
+
+  it "does not verify a rollback when readiness fails" do
+    allow(runner).to receive(:capture).and_return("atlas-atlas\n")
+    readiness_error = Atlas::Deployment::CommandError.new("Compose readiness failed: timed out")
+    allow(readiness_waiter).to receive(:wait).and_raise(readiness_error)
+
+    expect { workflow.run("rollback", arguments: [ "atlas-atlas:previous", "--confirm" ]) }.to raise_error(readiness_error)
+    expect(verifier).not_to have_received(:verify)
   end
 end
 

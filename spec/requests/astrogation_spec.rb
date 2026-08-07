@@ -32,6 +32,8 @@ RSpec.describe "Astrogation", type: :request do
       expect(astrogation_system["data-astrogation-star-class"]).to eq("M")
       expect(astrogation_system["data-astrogation-star-color"]).to eq("#ff6347")
       expect(astrogation_system["data-astrogation-star-brightness"]).to eq("0.8")
+      expect(astrogation_star["data-star-class"]).to eq("M")
+      expect(astrogation_star.at_css(".astrogation-star__core")["r"]).to eq("0.7")
     end
 
     it "accepts every supported class case-insensitively" do
@@ -45,7 +47,30 @@ RSpec.describe "Astrogation", type: :request do
         expect(astrogation_system["data-astrogation-star-brightness"]).to eq(
           Astrogation::StarCatalog.default.lookup(star_class)[:brightness].to_s
         )
+        expect(astrogation_star["data-star-class"]).to eq(star_class)
+        expect(astrogation_star["data-star-color"]).to eq(
+          Astrogation::StarCatalog.default.lookup(star_class)[:color]
+        )
+        expect(astrogation_star["data-star-brightness"]).to eq(
+          Astrogation::StarCatalog.default.lookup(star_class)[:brightness].to_s
+        )
+        expect(astrogation_star["style"]).to include(
+          "--astrogation-star-color: #{Astrogation::StarCatalog.default.lookup(star_class)[:color]};"
+        )
+        expect(astrogation_star["style"]).to include(
+          "--astrogation-star-brightness: #{Astrogation::StarCatalog.default.lookup(star_class)[:brightness]};"
+        )
+        expect(astrogation_star.at_css(".astrogation-star__core")["r"]).to eq("0.7")
       end
+    end
+
+    it "exposes accessible metadata for the central star" do
+      get "/astrogation", params: { starclass: "g" }
+
+      expect(astrogation_star["aria-labelledby"]).to eq("astrogation-star-title")
+      expect(astrogation_star.at_css("title").text).to eq("Central G-class star")
+      expect(Nokogiri::HTML(response.body).at_css("[data-astrogation-star-description]").text)
+        .to include("Central G-class star")
     end
 
     it "falls back to M for blank, multi-character, and unknown values" do
@@ -90,5 +115,9 @@ RSpec.describe "Astrogation", type: :request do
 
   def astrogation_system
     Nokogiri::HTML(response.body).at_css("#astrogation-system")
+  end
+
+  def astrogation_star
+    Nokogiri::HTML(response.body).at_css("[data-astrogation-star]")
   end
 end

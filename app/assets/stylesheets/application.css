@@ -774,6 +774,23 @@ body {
   fill: #f06f3f;
 }
 
+.astrogation-star {
+  pointer-events: none;
+}
+
+.astrogation-star__halo {
+  fill: var(--astrogation-star-color);
+  filter: blur(3px);
+  opacity: calc(var(--astrogation-star-brightness) * 0.35);
+}
+
+.astrogation-star__core {
+  fill: var(--astrogation-star-color);
+  filter: brightness(var(--astrogation-star-brightness));
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 0.18;
+}
+
 .astrogation-labels {
   fill: #f5f1e8;
   font-size: 2.9px;

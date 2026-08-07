@@ -127,7 +127,8 @@ end
 RSpec.describe Atlas::Deployment::DeployWorkflow do
   let(:runner) { instance_double(Atlas::Deployment::CommandRunner) }
   let(:verifier) { instance_double(Atlas::Deployment::Verifier, verify: true) }
-  let(:workflow) { described_class.new(runner:, verifier:) }
+  let(:readiness_waiter) { instance_double(Atlas::Deployment::ReadinessWaiter, wait: true) }
+  let(:workflow) { described_class.new(runner:, verifier:, readiness_waiter:) }
 
   before do
     allow(runner).to receive(:run)
@@ -161,7 +162,27 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
 
     expect(runner).to have_received(:capture).twice
     expect(runner).to have_received(:run).with(%w[docker compose restart atlas])
+    expect(readiness_waiter).to have_received(:wait)
     expect(verifier).to have_received(:verify)
+  end
+
+  it "waits for readiness before verification while preserving marker ordering" do
+    expect(runner).to receive(:capture).and_return("marker\n").ordered
+    expect(runner).to receive(:run).with(%w[docker compose restart atlas]).ordered
+    expect(readiness_waiter).to receive(:wait).ordered
+    expect(verifier).to receive(:verify).ordered
+    expect(runner).to receive(:capture).and_return("marker\n").ordered
+
+    workflow.run("restart")
+  end
+
+  it "does not verify or compare the marker when readiness fails" do
+    readiness_error = Atlas::Deployment::CommandError.new("Compose readiness failed: timed out")
+    allow(readiness_waiter).to receive(:wait).and_raise(readiness_error)
+
+    expect { workflow.run("restart") }.to raise_error(readiness_error)
+    expect(verifier).not_to have_received(:verify)
+    expect(runner).to have_received(:capture).once
   end
 
   it "fails when the restart persistence marker changes" do

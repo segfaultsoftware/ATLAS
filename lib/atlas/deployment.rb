@@ -259,10 +259,27 @@ module Atlas
     class DeployWorkflow
       VALID_ACTIONS = %w[fresh update restart seed rollback].freeze
 
-      def initialize(runner: CommandRunner.new, verifier: nil, env: ENV, repository_root: Pathname(__dir__).join("../..").expand_path)
+      def initialize(
+        runner: CommandRunner.new,
+        verifier: nil,
+        readiness_waiter: nil,
+        readiness_timeout: ReadinessWaiter::DEFAULT_TIMEOUT,
+        readiness_poll_interval: ReadinessWaiter::DEFAULT_POLL_INTERVAL,
+        readiness_clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) },
+        readiness_sleeper: ->(duration) { sleep(duration) },
+        env: ENV,
+        repository_root: Pathname(__dir__).join("../..").expand_path
+      )
         @runner = runner
         @env = env
         @verifier = verifier || Verifier.new(runner:, env:)
+        @readiness_waiter = readiness_waiter || ReadinessWaiter.new(
+          runner:,
+          timeout: readiness_timeout,
+          poll_interval: readiness_poll_interval,
+          clock: readiness_clock,
+          sleeper: readiness_sleeper
+        )
         @repository_root = Pathname(repository_root)
       end
 
@@ -280,6 +297,7 @@ module Atlas
         when "restart"
           marker = persistence_marker
           compose("restart", SERVICE)
+          readiness_waiter.wait
           verifier.verify
           verify_marker(marker, persistence_marker)
         when "seed"
@@ -293,7 +311,7 @@ module Atlas
 
       private
 
-      attr_reader :runner, :verifier, :env, :repository_root
+      attr_reader :runner, :verifier, :readiness_waiter, :env, :repository_root
 
       def usage
         "usage: bin/deploy [fresh, update, restart, seed, rollback IMAGE_REF --confirm]"

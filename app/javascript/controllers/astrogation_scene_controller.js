@@ -5,6 +5,7 @@ const INITIAL_SCALE = 0.05
 const MIN_SCALE = 0.008
 const MAX_SCALE = 0.5
 const ZOOM_FACTOR = 1.2
+const LABEL_GAP_PX = 4
 
 export default class extends Controller {
   static targets = ["viewport", "world", "labels", "status"]
@@ -117,11 +118,29 @@ export default class extends Controller {
       `translate(${VIEWBOX_CENTER} ${VIEWBOX_CENTER}) scale(${this.scale}) translate(${-this.center.x} ${-this.center.y})`
     )
 
+    const markers = new Map(
+      [...this.worldTarget.querySelectorAll("[data-astrogation-marker]")].map((marker) => [
+        marker.dataset.astrogationMarker,
+        marker
+      ])
+    )
+
     this.labelsTarget.querySelectorAll("[data-astrogation-label]").forEach((label) => {
       const entity = this.entities.find((candidate) => candidate.name === label.dataset.astrogationLabel)
+      const marker = markers.get(label.dataset.astrogationLabel)
+      if (!entity || !marker) return
+
       const x = VIEWBOX_CENTER + (entity.x - this.center.x) * this.scale
       const y = VIEWBOX_CENTER + (entity.y - this.center.y) * this.scale
       label.setAttribute("transform", `translate(${x} ${y})`)
+
+      const labelText = label.querySelector("text")
+      const labelBottom = labelText.getBoundingClientRect().bottom
+      const markerTop = marker.getBoundingClientRect().top
+      const pixelsPerSvgUnit = Math.abs(label.getScreenCTM().d)
+      const yOffset = (markerTop - LABEL_GAP_PX - labelBottom) / pixelsPerSvgUnit
+
+      label.setAttribute("transform", `translate(${x} ${y + yOffset})`)
     })
 
     this.element.dataset.astrogationScale = this.scale

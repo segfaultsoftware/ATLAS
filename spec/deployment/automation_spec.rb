@@ -31,6 +31,17 @@ class RealCheckoutRunner
 end
 
 RSpec.describe Atlas::DeploymentAutomation::CommandRunner do
+  it "limits Git authentication to Git child commands" do
+    runner = described_class.new(git_auth: "AUTHORIZATION: bearer test-token")
+
+    expect(runner.send(:command_environment, %w[git push], {})).to include(
+      "GIT_CONFIG_COUNT" => "1",
+      "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
+      "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: bearer test-token"
+    )
+    expect(runner.send(:command_environment, %w[bin/deploy update], {})).to eq({})
+  end
+
   it "bounds and redacts failed command output" do
     runner = described_class.new(secret_values: [ "raw-secret" ])
 

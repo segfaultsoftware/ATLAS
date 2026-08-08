@@ -21,11 +21,12 @@ module Atlas
       MAX_OUTPUT_BYTES = 32_768
       MAX_OUTPUT_LINES = 300
 
-      def initialize(secret_values: [])
+      def initialize(secret_values: [], git_auth: nil)
         @secret_values = Array(secret_values).filter_map do |value|
           value = value.to_s
           value unless value.empty?
         end.freeze
+        @git_auth = git_auth.to_s unless git_auth.to_s.empty?
       end
 
       def run(command, environment: {}, chdir: nil)
@@ -52,7 +53,7 @@ module Atlas
       def execute(command, environment:, chdir:)
         options = {}
         options[:chdir] = chdir unless chdir.nil?
-        stdin, stdout, stderr, wait_thread = Open3.popen3(environment, *command, **options)
+        stdin, stdout, stderr, wait_thread = Open3.popen3(command_environment(command, environment), *command, **options)
         stdin.close
         outputs = { stdout => +"", stderr => +"" }
         streams = outputs.keys
@@ -98,6 +99,16 @@ module Atlas
         "command failed (#{status.exitstatus}): #{safe_command(command)}#{detail}"
       end
 
+      def command_environment(command, environment)
+        return environment unless command.first == "git" && @git_auth
+
+        {
+          "GIT_CONFIG_COUNT" => "1",
+          "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
+          "GIT_CONFIG_VALUE_0" => @git_auth
+        }.merge(environment)
+      end
+
       def terminate(wait_thread)
         Process.kill("TERM", wait_thread.pid)
       rescue Errno::ESRCH
@@ -127,6 +138,7 @@ module Atlas
       runner: nil,
       event: ENV,
       secret_values: nil,
+      git_auth: nil,
       remote: "origin",
       production_root: ENV.fetch("ATLAS_PRODUCTION_ROOT", DEFAULT_PRODUCTION_ROOT),
       staging_root: ENV.fetch("ATLAS_STAGING_ROOT", DEFAULT_STAGING_ROOT),
@@ -143,7 +155,7 @@ module Atlas
       @staging_host = staging_host.to_s
       @deploy_command = Array(deploy_command).map(&:to_s).freeze
       @verify_command = Array(verify_command).map(&:to_s).freeze
-      @runner = runner || CommandRunner.new(secret_values: secret_values || deployment_secret_values)
+      @runner = runner || CommandRunner.new(secret_values: secret_values || deployment_secret_values, git_auth:)
     end
 
     def run

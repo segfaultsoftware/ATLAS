@@ -33,4 +33,47 @@ RSpec.describe Astrogation::System, type: :service do
 
     expect(ship.slice(:x, :y)).to eq({ x: -402.776, y: 520.224 })
   end
+
+  describe ".transits" do
+    it "returns every persisted transit with deterministic Cartesian endpoints" do
+      first_body = FactoryBot.create(:celestial_body, name: "First ship")
+      second_body = FactoryBot.create(:celestial_body, name: "Second ship")
+      first_transit = FactoryBot.create(
+        :celestial_transit,
+        celestial_body: first_body,
+        celestial_coordinates_start: { "x" => 1.0, "y" => 2.0 },
+        celestial_coordinates_target: { "x" => 3.0, "y" => 4.0 }
+      )
+      second_transit = FactoryBot.create(
+        :celestial_transit,
+        celestial_body: second_body,
+        celestial_coordinates_start: { "x" => 5.0, "y" => 6.0 },
+        celestial_coordinates_target: { "x" => 7.0, "y" => 8.0 }
+      )
+
+      expect(described_class.transits).to eq(
+        [
+          {
+            id: first_transit.id,
+            celestial_body_id: first_body.id,
+            celestial_coordinates_start: { "x" => 1.0, "y" => 2.0 },
+            celestial_coordinates_target: { "x" => 3.0, "y" => 4.0 }
+          },
+          {
+            id: second_transit.id,
+            celestial_body_id: second_body.id,
+            celestial_coordinates_start: { "x" => 5.0, "y" => 6.0 },
+            celestial_coordinates_target: { "x" => 7.0, "y" => 8.0 }
+          }
+        ]
+      )
+    end
+
+    it "returns an immutable collection" do
+      FactoryBot.create(:celestial_transit)
+
+      expect(described_class.transits).to be_frozen
+      expect(described_class.transits).to all(be_frozen)
+    end
+  end
 end

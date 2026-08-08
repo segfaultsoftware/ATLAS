@@ -107,6 +107,40 @@ RSpec.describe "Astrogation", type: :request do
     expect(response.body).to eq(first_body)
   end
 
+  it "exposes every persisted transit with Cartesian endpoints" do
+    first_transit = FactoryBot.create(
+      :celestial_transit,
+      celestial_coordinates_start: { "x" => 1.0, "y" => 2.0 },
+      celestial_coordinates_target: { "x" => 3.0, "y" => 4.0 }
+    )
+    second_transit = FactoryBot.create(
+      :celestial_transit,
+      celestial_coordinates_start: { "x" => 5.0, "y" => 6.0 },
+      celestial_coordinates_target: { "x" => 7.0, "y" => 8.0 }
+    )
+
+    get "/astrogation"
+
+    transits = JSON.parse(Nokogiri::HTML(response.body).at_css("#astrogation-system")["data-astrogation-transits"])
+
+    expect(transits).to eq(
+      [
+        {
+          "id" => first_transit.id,
+          "celestial_body_id" => first_transit.celestial_body_id,
+          "celestial_coordinates_start" => { "x" => 1.0, "y" => 2.0 },
+          "celestial_coordinates_target" => { "x" => 3.0, "y" => 4.0 }
+        },
+        {
+          "id" => second_transit.id,
+          "celestial_body_id" => second_transit.celestial_body_id,
+          "celestial_coordinates_start" => { "x" => 5.0, "y" => 6.0 },
+          "celestial_coordinates_target" => { "x" => 7.0, "y" => 8.0 }
+        }
+      ]
+    )
+  end
+
   it "does not persist system state" do
     expect { get "/astrogation" }.not_to change { [ User.count, Profile.count ] }
   end

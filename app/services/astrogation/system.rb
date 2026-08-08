@@ -29,6 +29,17 @@ module Astrogation
       end
     end
 
+    def transits
+      CelestialTransit.order(:id).map do |transit|
+        {
+          id: transit.id,
+          celestial_body_id: transit.celestial_body_id,
+          celestial_coordinates_start: transit.celestial_coordinates_start.to_h.transform_keys(&:to_s).freeze,
+          celestial_coordinates_target: transit.celestial_coordinates_target.to_h.transform_keys(&:to_s).freeze
+        }.freeze
+      end.freeze
+    end
+
     def coordinate(distance:, angle:)
       radians = angle * Math::PI / 180
 

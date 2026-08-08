@@ -12,6 +12,7 @@
   data-astrogation-star-color="<%= @star_properties[:color] %>"
   data-astrogation-star-brightness="<%= @star_properties[:brightness] %>"
   data-astrogation-entities="<%= json_escape(@entities.to_json) %>"
+  data-astrogation-transits="<%= json_escape(@transits.to_json) %>"
 >
   <header class="astrogation-header">
     <h1 id="astrogation-title">Astrogation</h1>

@@ -6,12 +6,14 @@ const MIN_SCALE = 0.008
 const MAX_SCALE = 0.5
 const ZOOM_FACTOR = 1.2
 const LABEL_GAP_PX = 4
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 
 export default class extends Controller {
   static targets = ["viewport", "world", "labels", "status"]
 
   connect() {
     this.entities = JSON.parse(this.element.dataset.astrogationEntities)
+    this.transits = this.parseTransits(this.element.dataset.astrogationTransits)
     this.ship = this.entities.find((entity) => entity.kind === "ship")
     this.scale = INITIAL_SCALE
     this.center = { x: this.ship.x, y: this.ship.y }
@@ -117,6 +119,7 @@ export default class extends Controller {
       "transform",
       `translate(${VIEWBOX_CENTER} ${VIEWBOX_CENTER}) scale(${this.scale}) translate(${-this.center.x} ${-this.center.y})`
     )
+    this.renderTransits()
 
     const markers = new Map(
       [...this.worldTarget.querySelectorAll("[data-astrogation-marker]")].map((marker) => [
@@ -147,5 +150,55 @@ export default class extends Controller {
     this.element.dataset.astrogationCenterX = this.center.x
     this.element.dataset.astrogationCenterY = this.center.y
     this.statusTarget.textContent = `Zoom ${this.scale.toFixed(3)}. Center ${this.center.x.toFixed(1)}, ${this.center.y.toFixed(1)}.`
+  }
+
+  parseTransits(value) {
+    try {
+      const transits = JSON.parse(value)
+      if (!Array.isArray(transits)) throw new Error("transits must be an array")
+
+      return transits
+    } catch (error) {
+      console.log("Unable to parse astrogation transits", error)
+      return []
+    }
+  }
+
+  renderTransits() {
+    const layer = this.worldTarget.querySelector("[data-astrogation-transit-layer]")
+    if (!layer) return
+
+    layer.replaceChildren()
+    this.transits.forEach((transit, index) => {
+      const coordinates = this.usableTransitCoordinates(transit)
+      if (!coordinates) {
+        console.log("Skipping invalid astrogation transit", transit)
+        return
+      }
+
+      const line = document.createElementNS(SVG_NAMESPACE, "line")
+      line.classList.add("astrogation-transit")
+      line.dataset.astrogationTransit = index
+      line.setAttribute("x1", coordinates.start.x)
+      line.setAttribute("y1", coordinates.start.y)
+      line.setAttribute("x2", coordinates.target.x)
+      line.setAttribute("y2", coordinates.target.y)
+      line.setAttribute("marker-end", "url(#astrogation-transit-arrowhead)")
+      layer.appendChild(line)
+    })
+  }
+
+  usableTransitCoordinates(transit) {
+    const start = transit?.celestial_coordinates_start
+    const target = transit?.celestial_coordinates_target
+    if (!this.usableCoordinate(start) || !this.usableCoordinate(target)) return null
+    if (start.x === target.x && start.y === target.y) return null
+
+    return { start, target }
+  }
+
+  usableCoordinate(coordinate) {
+    return coordinate && typeof coordinate === "object" && !Array.isArray(coordinate) &&
+      Number.isFinite(coordinate.x) && Number.isFinite(coordinate.y)
   }
 }

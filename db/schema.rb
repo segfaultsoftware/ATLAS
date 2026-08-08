@@ -10,7 +10,23 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_000300) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_08_000100) do
+  create_table "celestial_bodies", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_celestial_bodies_on_name", unique: true
+  end
+
+  create_table "celestial_transits", force: :cascade do |t|
+    t.integer "celestial_body_id", null: false
+    t.json "celestial_coordinates_start", null: false
+    t.json "celestial_coordinates_target", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["celestial_body_id"], name: "index_celestial_transits_on_celestial_body_id", unique: true
+  end
+
   create_table "manual_categories", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -67,6 +83,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_000300) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  add_foreign_key "celestial_transits", "celestial_bodies"
   add_foreign_key "manual_page_categories", "manual_categories"
   add_foreign_key "manual_page_categories", "manual_pages"
   add_foreign_key "manual_pages", "manual_pages", column: "parent_id"

@@ -14,3 +14,14 @@ ManualPageImporter.call(
   page: landing_page,
   source_path: Rails.root.join("docs/srd/atlas-srd.md")
 )
+
+ship = CelestialBody.find_or_initialize_by(name: "Ship")
+ship.save!
+
+tejat_c = Astrogation::System.entities.find { |entity| entity[:name] == "Tejat C" }
+ketrak_station = Astrogation::System.entities.find { |entity| entity[:name] == "Ketrak Station" }
+
+ship_transit = CelestialTransit.find_or_initialize_by(celestial_body: ship)
+ship_transit.celestial_coordinates_start = tejat_c.slice(:x, :y)
+ship_transit.celestial_coordinates_target = ketrak_station.slice(:x, :y)
+ship_transit.save!

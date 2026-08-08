@@ -25,6 +25,38 @@ RSpec.describe "Astrogation", type: :request do
     )
   end
 
+  it "renders every persisted transit through the server contract" do
+    FactoryBot.create(
+      :celestial_transit,
+      celestial_coordinates_start_x: -24.433,
+      celestial_coordinates_start_y: 1399.787,
+      celestial_coordinates_target_x: -1285.575,
+      celestial_coordinates_target_y: -1532.089
+    )
+    FactoryBot.create(
+      :celestial_transit,
+      celestial_coordinates_start_x: 10.0,
+      celestial_coordinates_start_y: 20.0,
+      celestial_coordinates_target_x: 30.0,
+      celestial_coordinates_target_y: 40.0
+    )
+
+    get "/astrogation"
+
+    expect(JSON.parse(astrogation_system["data-astrogation-transits"])).to eq(
+      [
+        {
+          "celestial_coordinates_start" => { "x" => -24.433, "y" => 1399.787 },
+          "celestial_coordinates_target" => { "x" => -1285.575, "y" => -1532.089 }
+        },
+        {
+          "celestial_coordinates_start" => { "x" => 10.0, "y" => 20.0 },
+          "celestial_coordinates_target" => { "x" => 30.0, "y" => 40.0 }
+        }
+      ]
+    )
+  end
+
   describe "star class selection" do
     it "defaults to the M-class catalog entry" do
       get "/astrogation"

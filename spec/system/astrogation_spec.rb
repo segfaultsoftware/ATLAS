@@ -27,6 +27,102 @@ RSpec.describe "Astrogation", type: :system, system: true do
       .to be_within(0.001).of(page.evaluate_script("document.querySelector('#astrogation-system').dataset.astrogationShipX").to_f)
   end
 
+  it "renders each transit as a directional light-yellow arrow through navigation" do
+    FactoryBot.create(
+      :celestial_transit,
+      celestial_coordinates_start_x: -24.433,
+      celestial_coordinates_start_y: 1399.787,
+      celestial_coordinates_target_x: -1285.575,
+      celestial_coordinates_target_y: -1532.089
+    )
+
+    visit "/astrogation"
+
+    page.find("[data-astrogation-transit='0']")
+    transit_attributes = page.evaluate_script(<<~JAVASCRIPT)
+      (() => {
+        const transit = document.querySelector('[data-astrogation-transit="0"]')
+        return {
+          x1: transit.getAttribute('x1'),
+          y1: transit.getAttribute('y1'),
+          x2: transit.getAttribute('x2'),
+          y2: transit.getAttribute('y2'),
+          markerEnd: transit.getAttribute('marker-end'),
+          stroke: getComputedStyle(transit).stroke,
+          strokeDasharray: getComputedStyle(transit).strokeDasharray
+        }
+      })()
+    JAVASCRIPT
+
+    expect(transit_attributes).to eq(
+      {
+        "x1" => "-24.433",
+        "y1" => "1399.787",
+        "x2" => "-1285.575",
+        "y2" => "-1532.089",
+        "markerEnd" => "url(#astrogation-transit-arrowhead)",
+        "stroke" => "rgb(255, 248, 197)",
+        "strokeDasharray" => "none"
+      }
+    )
+
+    initial_transform = page.find("[data-astrogation-scene-target='world']")["transform"]
+    page.find("button[aria-label='Zoom in']").click
+    expect(page).to have_css("[data-astrogation-transit='0']", count: 1)
+    expect(page.find("[data-astrogation-scene-target='world']")["transform"]).not_to eq(initial_transform)
+
+    viewport = page.find(".astrogation-scene__viewport")
+    page.driver.browser.action.move_to(viewport.native).click_and_hold.move_by(80, 0).release.perform
+    expect(page).to have_css("[data-astrogation-transit='0']", count: 1)
+
+    page.find("button[aria-label='Center on ship']").click
+    expect(page).to have_css("[data-astrogation-transit='0']", count: 1)
+
+    page.driver.browser.manage.window.resize_to(640, 720)
+    expect(page).to have_css("[data-astrogation-transit='0']", count: 1)
+
+    refresh
+    expect(page).to have_css("[data-astrogation-transit='0']", count: 1)
+  end
+
+  it "logs and omits malformed transits without affecting valid records" do
+    visit "/astrogation"
+
+    result = page.evaluate_script(<<~JAVASCRIPT)
+      (() => {
+        const element = document.querySelector('#astrogation-system')
+        const controller = window.Stimulus.getControllerForElementAndIdentifier(element, 'astrogation-scene')
+        const messages = []
+        const originalLog = console.log
+        console.log = (...arguments) => messages.push(arguments)
+
+        try {
+          controller.transits = [
+            { celestial_coordinates_start: { x: 1, y: 2 } },
+            {
+              celestial_coordinates_start: { x: 5, y: 6 },
+              celestial_coordinates_target: { x: 5, y: 6 }
+            },
+            {
+              celestial_coordinates_start: { x: 1, y: 2 },
+              celestial_coordinates_target: { x: 3, y: 4 }
+            }
+          ]
+          controller.render()
+        } finally {
+          console.log = originalLog
+        }
+
+        return {
+          transitCount: document.querySelectorAll('[data-astrogation-transit]').length,
+          logCount: messages.length
+        }
+      })()
+    JAVASCRIPT
+
+    expect(result).to eq("transitCount" => 1, "logCount" => 2)
+  end
+
   it "keeps every entity label above its marker with a screen-space gap" do
     visit "/astrogation"
 

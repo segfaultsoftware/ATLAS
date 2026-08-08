@@ -22,6 +22,45 @@ RSpec.describe Astrogation::System, type: :service do
     end
   end
 
+  describe ".transits" do
+    it "returns every persisted transit with Cartesian endpoint objects" do
+      FactoryBot.create(
+        :celestial_transit,
+        celestial_coordinates_start_x: -24.433,
+        celestial_coordinates_start_y: 1399.787,
+        celestial_coordinates_target_x: -1285.575,
+        celestial_coordinates_target_y: -1532.089
+      )
+      FactoryBot.create(
+        :celestial_transit,
+        celestial_coordinates_start_x: 10.0,
+        celestial_coordinates_start_y: 20.0,
+        celestial_coordinates_target_x: 30.0,
+        celestial_coordinates_target_y: 40.0
+      )
+
+      expect(described_class.transits).to eq(
+        [
+          {
+            celestial_coordinates_start: { x: -24.433, y: 1399.787 },
+            celestial_coordinates_target: { x: -1285.575, y: -1532.089 }
+          },
+          {
+            celestial_coordinates_start: { x: 10.0, y: 20.0 },
+            celestial_coordinates_target: { x: 30.0, y: 40.0 }
+          }
+        ]
+      )
+    end
+
+    it "returns immutable data" do
+      FactoryBot.create(:celestial_transit)
+
+      expect(described_class.transits).to be_frozen
+      expect(described_class.transits).to all(be_frozen)
+    end
+  end
+
   describe ".coordinate" do
     it "uses clockwise angles as positive screen Y" do
       expect(described_class.coordinate(distance: 100, angle: 90)).to eq({ x: 0.0, y: 100.0 })

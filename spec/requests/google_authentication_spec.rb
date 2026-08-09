@@ -33,19 +33,18 @@ RSpec.describe "Google authentication", type: :request do
     OmniAuth.config.test_mode = previous_test_mode
   end
 
-  it "offers one public Login/Register control that starts Google OAuth only" do
+  it "keeps Google OAuth callback compatibility without exposing it in the public header" do
     get "/"
 
     expect(response).to have_http_status(:ok)
     page = Nokogiri::HTML(response.body)
-    auth_forms = page.css('.site-header form[action="/users/auth/google_oauth2"]')
+    auth_links = page.css(".site-header a.account-actions__button")
 
-    expect(auth_forms.size).to eq(1)
-    expect(auth_forms.first["method"]).to eq("post")
-    expect(auth_forms.first["data-turbo"]).to eq("false")
-    expect(auth_forms.css("button").map(&:text).map(&:strip)).to contain_exactly("Login/Register")
-    expect(response.body).not_to include("/users/sign_in")
-    expect(response.body).not_to include("/users/sign_up")
+    expect(auth_links.map { |link| [ link.text.strip, link["href"] ] }).to contain_exactly(
+      [ "Log in", "/users/sign_in" ],
+      [ "Sign up", "/users/sign_up" ]
+    )
+    expect(page.css('.site-header form[action="/users/auth/google_oauth2"]')).to be_empty
   end
 
   it "creates a Google auth identity and remembers the signed-in session" do
@@ -71,7 +70,8 @@ RSpec.describe "Google authentication", type: :request do
     expect(page.at_css(".header-avatar")).to be_present
     expect(response.body).to include("Profile")
     expect(response.body).to include("Logout")
-    expect(response.body).not_to include("Login/Register")
+    expect(response.body).not_to include("Log in")
+    expect(response.body).not_to include("Sign up")
   end
 
   it "reuses an existing Google auth identity on callback" do
@@ -135,7 +135,8 @@ RSpec.describe "Google authentication", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login/Register")
+    expect(response.body).to include("Log in")
+    expect(response.body).to include("Sign up")
     expect(response.body).not_to include("Logout")
   end
 end

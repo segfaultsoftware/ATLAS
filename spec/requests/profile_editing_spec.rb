@@ -8,8 +8,8 @@ RSpec.describe "Profile editing", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login")
-    expect(response.body).to include("Register")
+    expect(response.body).to include("Log in")
+    expect(response.body).to include("Sign up")
   end
 
   it "blocks anonymous profile update attempts" do
@@ -22,8 +22,8 @@ RSpec.describe "Profile editing", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login")
-    expect(response.body).to include("Register")
+    expect(response.body).to include("Log in")
+    expect(response.body).to include("Sign up")
   end
 
   it "shows read-only profile data by default with an edit action for the current user" do

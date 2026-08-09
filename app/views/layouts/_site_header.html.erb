@@ -52,7 +52,8 @@
           </div>
         </details>
       <% else %>
-        <%= button_to "Login/Register", user_google_oauth2_omniauth_authorize_path, method: :post, form: { class: "account-actions__form", data: { turbo: false } }, class: "account-actions__button" %>
+        <%= link_to "Log in", new_user_session_path, class: "account-actions__button" %>
+        <%= link_to "Sign up", new_user_registration_path, class: "account-actions__button" %>
       <% end %>
     </div>
   </nav>

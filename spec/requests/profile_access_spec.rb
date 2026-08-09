@@ -1,36 +1,16 @@
 require "rails_helper"
 
 RSpec.describe "Profile access", type: :request do
-  def google_auth_hash(uid: "google-123", email: "player@example.com", name: "Atlas Player")
-    OmniAuth::AuthHash.new(
-      provider: "google_oauth2",
-      uid: uid,
-      info: {
-        email: email,
-        name: name
-      }
-    )
-  end
+  include Devise::Test::IntegrationHelpers
 
-  def mock_google_auth(auth_hash = google_auth_hash)
-    OmniAuth.config.mock_auth[:google_oauth2] = auth_hash
-  end
-
-  def complete_google_login
-    post "/users/auth/google_oauth2"
-    follow_redirect!
-  end
-
-  around do |example|
-    previous_test_mode = OmniAuth.config.test_mode
-    previous_mock_auth = OmniAuth.config.mock_auth[:google_oauth2]
-
-    OmniAuth.config.test_mode = true
-    mock_google_auth
-    example.run
-  ensure
-    OmniAuth.config.mock_auth[:google_oauth2] = previous_mock_auth
-    OmniAuth.config.test_mode = previous_test_mode
+  def complete_local_login(user)
+    post "/users/sign_in",
+         params: {
+           user: {
+             email: user.email,
+             password: "password123"
+           }
+         }
   end
 
   it "blocks anonymous current-profile access and stores the intended destination for login" do
@@ -38,10 +18,12 @@ RSpec.describe "Profile access", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login")
-    expect(response.body).to include("Register")
+    expect(response.body).to include("Log in")
+    expect(response.body).to include("Sign up")
 
-    complete_google_login
+    user = FactoryBot.create(:user)
+    FactoryBot.create(:profile, user: user)
+    complete_local_login(user)
 
     expect(response).to redirect_to("/profile")
     follow_redirect!
@@ -56,10 +38,11 @@ RSpec.describe "Profile access", type: :request do
 
     expect(response).to redirect_to("/")
     follow_redirect!
-    expect(response.body).to include("Login")
-    expect(response.body).to include("Register")
+    expect(response.body).to include("Log in")
+    expect(response.body).to include("Sign up")
 
-    complete_google_login
+    user = FactoryBot.create(:user)
+    complete_local_login(user)
 
     expect(response).to redirect_to("/profiles/#{profile.id}")
     follow_redirect!
@@ -68,9 +51,10 @@ RSpec.describe "Profile access", type: :request do
   end
 
   it "allows authenticated users to view their own read-only profile data" do
-    complete_google_login
-    follow_redirect!
-    User.last.profile.update!(
+    user = FactoryBot.create(:user)
+    profile = FactoryBot.create(:profile, user: user, preferred_name: "Atlas Player")
+    complete_local_login(user)
+    profile.update!(
       pronouns: "they/them",
       preferred_playtimes: "Weeknights after 7",
       avatar_key: "smile"
@@ -96,8 +80,9 @@ RSpec.describe "Profile access", type: :request do
       preferred_playtimes: "Sundays",
       avatar_key: "frown"
     )
-    complete_google_login
-    follow_redirect!
+    user = FactoryBot.create(:user)
+    FactoryBot.create(:profile, user: user)
+    complete_local_login(user)
 
     get "/profiles/#{other_profile.id}"
 

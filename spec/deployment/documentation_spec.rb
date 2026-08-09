@@ -38,6 +38,23 @@ RSpec.describe "the deployment documentation contract" do
     expect(documentation).to match(/already advanced.*safe retry|safe retry.*already advanced/i)
   end
 
+  it "documents staging post-tag deployment failure recovery and operator evidence" do
+    expect(documentation).to include("Staging tag advancement happens before deployment")
+    expect(documentation).to match(/`refs\/tags\/staging` may already point at the new\s+`main` revision\s+after a deployment failure/)
+    expect(documentation).to match(/Rerun the failed workflow\s+for the same `main` revision/i)
+    expect(documentation).to match(/Do not move the staging tag again\s+when it already\s+names that revision/)
+    expect(documentation).to include("`GITHUB_BEFORE` and `GITHUB_SHA`", "the workflow run URL", "the compare-and-swap result")
+    expect(documentation).to match(/the\s+direct and peeled `refs\/tags\/staging` values/)
+    expect(documentation).to match(/the deployment checkout `git rev-parse HEAD` result/)
+    expect(documentation).to match(/the `bin\/verify-deployment`\s+output/)
+    expect(documentation).to include(
+      "git ls-remote origin refs/tags/staging refs/tags/staging^{}",
+      'git -C "$ATLAS_STAGING_ROOT" rev-parse HEAD',
+      "gh run view <workflow-run-id> --json conclusion,headSha,url",
+      "gh run rerun <workflow-run-id> --failed"
+    )
+  end
+
   it "makes revert-commit plus prod-tag-forward recovery authoritative" do
     expect(documentation).to match(/authoritative.*revert.*commit.*prod.*tag|revert.*commit.*prod.*tag.*authoritative/im)
     expect(documentation).to include(

@@ -74,6 +74,33 @@ Staging tag advancement and staging deployment occur in the same workflow run
 because a `GITHUB_TOKEN`-created ref update does not recursively trigger an
 ordinary push workflow.
 
+Staging tag advancement happens before deployment. If the tag update succeeds
+but `bin/deploy update` fails, `refs/tags/staging` may already point at the new
+`main` revision after a deployment failure. This is a recoverable state: inspect
+the tag, preserve the failed workflow diagnostics, and rerun the failed workflow
+for the same `main` revision. Do not move the staging tag again when it already
+names that revision; the automation treats the event as a safe retry and runs
+`bin/deploy update` without another tag mutation.
+
+For a staging failure, capture the event's `GITHUB_BEFORE` and `GITHUB_SHA`, the
+direct and peeled `refs/tags/staging` values, the workflow run URL and result,
+the deployment checkout `git rev-parse HEAD` result, the `bin/verify-deployment`
+output, and the compare-and-swap result. Redact secrets and bounded diagnostics
+from any evidence shared outside the authorized operator records.
+
+Use bounded commands to inspect the state before retrying:
+
+```sh
+git ls-remote origin refs/tags/staging refs/tags/staging^{}
+git -C "$ATLAS_STAGING_ROOT" rev-parse HEAD
+gh run view <workflow-run-id> --json conclusion,headSha,url
+gh run rerun <workflow-run-id> --failed
+```
+
+Compare the tag and checkout output with `GITHUB_SHA` before rerunning the
+failed workflow. The rerun must target that same workflow run; it must not
+create another tag movement when staging already names the revision.
+
 Every deployment synchronizes a clean host checkout, preserves the ignored
 `.env` and persistent `storage`, checks out the requested revision detached,
 then runs `bin/deploy update`, which performs the deployment readiness and

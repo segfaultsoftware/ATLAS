@@ -18,6 +18,119 @@ Steps under **Manual operator action** change the homelab or require knowledge
 of its current configuration. Record what was changed and the evidence from
 the corresponding verification step before continuing.
 
+## Automated deployment contract
+
+The deployment workflow is deliberately limited to trusted push events:
+
+- A push for `refs/tags/prod` deploys the current commit named by the `prod`
+  tag to `/srv/apps/ATLAS`, serving `atlas.home.arpa`.
+- A push for `refs/heads/main` manages staging at
+  `/srv/apps/ATLAS-staging`, serving `atlas-staging.home.arpa`.
+- Pull requests, non-push events, and other branches or tags do not trigger
+  this workflow. A deleted `prod` or `main` ref may still enter the job, but
+  the automation returns `:ignored` before it mutates the deployment host.
+
+The workflow runs on the dedicated `atlas-deployment` self-hosted runner group
+and label. It uses one non-canceling concurrency group for the repository, so a
+production or staging host mutation finishes before another one begins. The
+workflow grants `contents: write` because the staging path may update a tag;
+the existing pull-request and hosted `main` CI remains separate from this
+privileged runner.
+
+The workflow checks out source with credentials removed from the checkout,
+selects the repository Ruby version, and passes Git authentication only through
+the Git child-process configuration used by `bin/deployment-automation`. The
+token is not printed, copied into `.env`, or written into Rails secrets. The
+workflow provides `GITHUB_BEFORE`, `ATLAS_PRODUCTION_ROOT`, and
+`ATLAS_STAGING_ROOT`; host provisioning and runner registration remain owned by
+the homelab procedures.
+
+### Production and staging ref behavior
+
+Before a production deployment, the automation verifies that the remote
+`refs/tags/prod` still identifies the event revision. A delayed, stale, or
+deleted tag event is ignored, and a tag that changes during checkout is refused
+before `bin/deploy update` runs.
+
+For a `refs/heads/main` event, the automation reads `refs/tags/staging` and
+compares its commit with the event's previous `main` commit:
+
+This is the tracking staging path: staging follows `main` only while its tag
+still names the previous `main` commit.
+
+- An absent staging tag remains absent; the event is ignored.
+- If staging is intentionally pinned to another revision, it remains pinned and
+  the event is ignored.
+- If staging is already advanced to the new `main` revision, the event is a safe retry
+  and deploys that revision without moving the tag again.
+- If staging names the previous `main` revision, the automation advances it
+  with `git push --force-with-lease` and verifies the resulting
+  `refs/tags/staging` before deploying.
+
+The force-with-lease operation is a compare-and-swap: a concurrent tag change
+fails visibly and leaves the staging tag unchanged. Operators can inspect the
+failure, resolve the intentional pin or stale event, and retry the workflow.
+Staging tag advancement and staging deployment occur in the same workflow run
+because a `GITHUB_TOKEN`-created ref update does not recursively trigger an
+ordinary push workflow.
+
+Staging tag advancement happens before deployment. If the tag update succeeds
+but `bin/deploy update` fails, `refs/tags/staging` may already point at the new
+`main` revision after a deployment failure. This is a recoverable state: inspect
+the tag, preserve the failed workflow diagnostics, and rerun the failed workflow
+for the same `main` revision. Do not move the staging tag again when it already
+names that revision; the automation treats the event as a safe retry and runs
+`bin/deploy update` without another tag mutation.
+
+For a staging failure, capture the event's `GITHUB_BEFORE` and `GITHUB_SHA`, the
+direct and peeled `refs/tags/staging` values, the workflow run URL and result,
+the deployment checkout `git rev-parse HEAD` result, the `bin/verify-deployment`
+output, and the compare-and-swap result. Redact secrets and bounded diagnostics
+from any evidence shared outside the authorized operator records.
+
+Use bounded commands to inspect the state before retrying:
+
+```sh
+git ls-remote origin refs/tags/staging refs/tags/staging^{}
+git -C "$ATLAS_STAGING_ROOT" rev-parse HEAD
+gh run view <workflow-run-id> --json conclusion,headSha,url
+gh run rerun <workflow-run-id> --failed
+```
+
+Compare the tag and checkout output with `GITHUB_SHA` before rerunning the
+failed workflow. The rerun must target that same workflow run; it must not
+create another tag movement when staging already names the revision.
+
+Every deployment synchronizes a clean host checkout, preserves the ignored
+`.env` and persistent `storage`, checks out the requested revision detached,
+then runs `bin/deploy update`, which performs the deployment readiness and
+verification checks through `Atlas::Deployment::DeployWorkflow`. The automation
+does not run `bin/verify-deployment` a second time. That command remains the
+separate operator-facing handoff verifier for manual checks outside the
+automated deployment path.
+
+### Operator validation and recovery evidence
+
+For each workflow change or operator rehearsal, record evidence for the exact
+`refs/tags/prod` and `refs/heads/main` event cases, unrelated and deleted refs,
+stale events, intentional staging pins, duplicate deliveries, compare-and-swap
+conflicts, failed deployments, runner outage/restart, and credential rotation.
+The repository-side validation commands are:
+
+```sh
+RBENV_VERSION=4.0.5 rbenv exec bundle exec rspec spec/deployment
+docker compose config --quiet
+bin/verify-deployment
+docker compose ps
+docker compose port atlas 80
+git diff --check
+```
+
+Run live deployment verification only on the authorized staging-safe host. Do
+not treat a local test, a successful tag write, or a healthy runner as proof
+that Caddy, DNS, storage, secrets, or the external `web` network are correctly
+configured.
+
 ## Runtime contract
 
 The production Compose project has one service, `atlas`:
@@ -312,7 +425,7 @@ LAN-only.
 First transfer the certificate from the homeserver:
 
 ```
-scp sam@192.168.4.32:/srv/apps/ATLAS/.codex-tmp/caddy-local-root.crt .
+scp sam@<HOMESERVER_LAN_ADDRESS>:/srv/apps/ATLAS/.codex-tmp/caddy-local-root.crt .
 ```
 
 Verify its SHA-256 fingerprint matches the homeserver before trusting it:
@@ -346,28 +459,52 @@ Microsoft’s trusted root store is the correct location for private CA certific
 
 [Apple’s Keychain documentation](https://support.apple.com/en-ca/guide/keychain-access/kyca2431/mac)
 
-## Rollback
+## Production rollback and recovery
 
-### Manual operator action: choose and validate the image
+The authoritative production recovery path is a revert commit followed by moving
+the `prod` tag forward. It keeps the normal reviewed source and deployment path
+in use; the `bin/deploy rollback` helper is not the primary recovery mechanism.
 
-Select an image reference that is already present locally or is available
-through the approved image source. Confirm that it corresponds to the last
-known-good application revision. Do not guess an image tag.
+### Repository command: revert the faulty change
 
-### Repository command: perform the rollback
-
-Run the rollback with the selected image reference and its required explicit
-confirmation:
+From a clean clone on `main`, with the faulty production change identified:
 
 ```sh
-bin/deploy rollback IMAGE_REF --confirm
+git switch main
+git revert <faulty-commit>
+git push origin HEAD:main
+```
+
+After the revert commit passes the normal checks, move `prod` to that commit.
+First confirm that the remote `prod` ref still identifies the faulty production
+revision. Use the exact direct-ref object ID returned by this check as
+`<current-prod-ref>`; for an annotated tag, compare the peeled ID with
+`<faulty-commit>` and use the tag object's direct-ref ID for the lease:
+
+```sh
+git ls-remote origin refs/tags/prod refs/tags/prod^{}
+```
+
+Then move the tag with a compare-and-swap lease. The tag movement selects the
+production workflow, which verifies the tagged revision and updates
+`/srv/apps/ATLAS`:
+
+```sh
+git push --force-with-lease=refs/tags/prod:<current-prod-ref> origin <revert-commit>:refs/tags/prod
+```
+
+After the workflow reports completion, run verification on the authorized
+deployment host from `/srv/apps/ATLAS`:
+
+```sh
 bin/verify-deployment
 ```
 
-The workflow validates Compose, inspects the image, retags it to the image name
-used by Compose, starts the service without rebuilding, and verifies the
-service. If the rollback does not pass verification, preserve the output and
-follow the recovery section instead of repeatedly changing image references.
+Do not force a tag over an unrelated production revision or use an image-only
+rollback to bypass source review. If the tag movement, deployment, or
+verification fails, preserve the bounded workflow diagnostics and follow the
+operator recovery order below. A later revert commit and another guarded
+forward `prod` tag movement are the supported retry path.
 
 ## Backup, restore, and recovery
 
@@ -484,6 +621,33 @@ For a host-level incident, use this order and record evidence at each handoff:
 If the database is corrupt, the master key is unavailable, or a migration has
 already changed the schema, stop before running `db:prepare` again and involve
 the service owner. Do not treat a container rebuild as a database recovery.
+
+## homelab-manual ownership and reconstruction
+
+Host-level provisioning and recovery remain owned by the
+[`homelab-manual`](https://github.com/segfaultsoftware/homelab-manual)
+repository. The ATLAS-side contract is intentionally limited to application
+paths, workflow behavior, verification seams, and links to the host procedures.
+
+The dependency owners are homelab-manual #6, homelab-manual #7, and
+homelab-manual #8, in that order.
+
+- homelab-manual [#6](https://github.com/segfaultsoftware/homelab-manual/issues/6)
+  is the owner of runner provisioning, security, identity, lifecycle, cleanup, and
+  credential handling. It is the first owner in the reconstruction sequence.
+- homelab-manual [#7](https://github.com/segfaultsoftware/homelab-manual/issues/7)
+  is the owner of ATLAS host integration, checkout prerequisites, Docker access, storage,
+  the external `web` network, and Caddy-facing host integration. #7 depends on
+  #6 and is the second owner in the reconstruction sequence.
+- homelab-manual [#8](https://github.com/segfaultsoftware/homelab-manual/issues/8)
+  is the owner of operations, recovery, maintenance, and clean reconstruction evidence.
+  #8 depends on #7 and is the third owner in the reconstruction sequence.
+
+Follow #6 before #7 before #8, then use this runbook to validate the
+application-facing workflow contract. Do not put runner registration tokens,
+private keys, Rails secrets, or unneeded host addresses in this repository or
+in the linked tickets. Re-check the links and their completion evidence when
+the deployment system changes so the two repositories cannot silently drift.
 
 ## Deferred work
 

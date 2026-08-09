@@ -20,7 +20,7 @@ RSpec.describe "Header avatar menu", type: :request do
     Rails.root.join("app/assets/stylesheets/application.css").read
   end
 
-  it "renders a shared public header with home branding and one auth control" do
+  it "renders local login and signup controls in the shared public header" do
     [ "/", "/srd", "/srd/", "/status" ].each do |path|
       get path
 
@@ -28,13 +28,16 @@ RSpec.describe "Header avatar menu", type: :request do
       page = Nokogiri::HTML(response.body)
       header = page.at_css("body > header.site-header")
       brand = header.at_css('a.site-brand[href="/"]')
-      auth_forms = header.css('form[action="/users/auth/google_oauth2"]')
+      auth_links = header.css("a.account-actions__button")
 
       expect(brand.at_css('.site-brand__mark[aria-hidden="true"]')).to be_present
       expect(brand.at_css(".pixel-spaceship")).to be_present
       expect(brand.at_css(".site-brand__text").text).to eq("ATLAS")
-      expect(auth_forms.size).to eq(1)
-      expect(auth_forms.css("button").map(&:text).map(&:strip)).to contain_exactly("Login/Register")
+      expect(auth_links.map { |link| [ link.text.strip, link["href"] ] }).to contain_exactly(
+        [ "Log in", "/users/sign_in" ],
+        [ "Sign up", "/users/sign_up" ]
+      )
+      expect(header.css('form[action="/users/auth/google_oauth2"]')).to be_empty
       expect(page.at_css(".account-menu")).to be_nil
     end
   end
@@ -77,7 +80,8 @@ RSpec.describe "Header avatar menu", type: :request do
     expect(profile_link.text.strip).to eq("Profile")
     expect(logout_form.at_css('input[name="_method"][value="delete"]')).to be_present
     expect(logout_button.text.strip).to eq("Logout")
-    expect(page.text).not_to include("Login/Register")
+    expect(page.text).not_to include("Log in")
+    expect(page.text).not_to include("Sign up")
   end
 
   it "wires the account menu for native details fallback and controller behavior" do
@@ -147,6 +151,26 @@ RSpec.describe "Header avatar menu", type: :request do
             }
           }
     follow_redirect!
+
+    expect(response).to have_http_status(:ok)
+    expect(Nokogiri::HTML(response.body).at_css(".header-avatar").text).to include("🙁")
+  end
+
+  it "clears the header avatar cache when logging out" do
+    user = FactoryBot.create(:user)
+    profile = FactoryBot.create(:profile, user: user, avatar_key: "cry")
+    sign_in user
+
+    get "/"
+    expect(Nokogiri::HTML(response.body).at_css(".header-avatar").text).to include("😢")
+
+    delete "/logout"
+    expect(response).to redirect_to("/")
+    follow_redirect!
+
+    profile.update!(avatar_key: "frown")
+    sign_in user
+    get "/"
 
     expect(response).to have_http_status(:ok)
     expect(Nokogiri::HTML(response.body).at_css(".header-avatar").text).to include("🙁")

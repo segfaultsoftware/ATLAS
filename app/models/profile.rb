@@ -6,7 +6,7 @@ class Profile < ApplicationRecord
   }.freeze
   DEFAULT_AVATAR_KEY = "smile"
 
-  belongs_to :user
+  belongs_to :user, inverse_of: :profile
 
   before_validation :set_default_avatar_key
 

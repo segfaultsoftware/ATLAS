@@ -1,25 +1,16 @@
 class User < ApplicationRecord
-  has_one :profile, dependent: :destroy
+  has_one :profile, dependent: :destroy, inverse_of: :user, autosave: true
 
   enum :role, { user: "user", webadmin: "webadmin" }, default: :user
 
-  devise :rememberable,
-         :omniauthable,
-         omniauth_providers: [ :google_oauth2 ]
+  attr_accessor :preferred_name
 
-  validates :provider, :uid, :email, presence: true
-  validates :uid, uniqueness: { scope: :provider }
+  devise :database_authenticatable,
+         :registerable,
+         :rememberable,
+         :validatable
 
-  def self.find_or_create_from_google_oauth!(auth)
-    transaction do
-      find_or_initialize_by(provider: auth.provider, uid: auth.uid).tap do |user|
-        user.email = auth.info.email
-        user.name = auth.info.name
-        user.save!
-        user.ensure_profile!(preferred_name: auth.info.name)
-      end
-    end
-  end
+  validates :preferred_name, presence: true, on: :create
 
   def ensure_profile!(preferred_name:)
     with_lock do

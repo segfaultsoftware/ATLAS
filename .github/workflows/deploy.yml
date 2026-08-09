@@ -8,10 +8,13 @@ on:
       - prod
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  deploy:
+  deploy_production:
+    if: github.ref == 'refs/tags/prod'
+    permissions:
+      contents: read
     runs-on:
       group: atlas-deployment
       labels:
@@ -35,6 +38,42 @@ jobs:
       - name: Run deployment automation
         env:
           GITHUB_BEFORE: ${{ github.event.before }}
+          GITHUB_REF_DELETED: ${{ github.event.deleted }}
+          ATLAS_PRODUCTION_ROOT: /srv/apps/ATLAS
+          ATLAS_STAGING_ROOT: /srv/apps/ATLAS-staging
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: http.https://github.com/.extraheader
+          GIT_CONFIG_VALUE_0: "AUTHORIZATION: bearer ${{ github.token }}"
+        run: bin/deployment-automation
+
+  deploy_staging:
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    runs-on:
+      group: atlas-deployment
+      labels:
+        - self-hosted
+        - atlas-deployment
+    timeout-minutes: 30
+    concurrency:
+      group: atlas-deployment-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout workflow source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b
+        with:
+          bundler-cache: true
+
+      - name: Run deployment automation
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}
+          GITHUB_REF_DELETED: ${{ github.event.deleted }}
           ATLAS_PRODUCTION_ROOT: /srv/apps/ATLAS
           ATLAS_STAGING_ROOT: /srv/apps/ATLAS-staging
           GIT_CONFIG_COUNT: "1"

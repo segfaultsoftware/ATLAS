@@ -30,8 +30,8 @@ class RealCheckoutRunner
   end
 end
 
-RSpec.describe Atlas::DeploymentAutomation::CommandRunner do
-  it "limits Git authentication to Git child commands" do
+RSpec.describe Atlas::DeploymentAutomation::DeploymentAutomationCommandRunner do
+  it "limits Git authentication to remote Git child commands" do
     runner = described_class.new(git_auth: "AUTHORIZATION: bearer test-token")
 
     expect(runner.send(:command_environment, %w[git push], {})).to include(
@@ -40,6 +40,16 @@ RSpec.describe Atlas::DeploymentAutomation::CommandRunner do
       "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: bearer test-token"
     )
     expect(runner.send(:command_environment, %w[bin/deploy update], {})).to eq({})
+    expect(runner.send(:command_environment, %w[git status], {})).to eq({})
+    expect(runner.send(:command_environment, [ "git", "-c", "core.hooksPath=/dev/null", "checkout", "--detach", "revision" ], {})).to eq({})
+  end
+
+  it "does not allow repository hooks to run in deployment checkouts" do
+    runner = described_class.new(git_auth: "AUTHORIZATION: bearer test-token")
+
+    expect(runner.send(:command_environment, [ "git", "-c", "core.hooksPath=/dev/null", "fetch", "origin", "revision" ], {})).to include(
+      "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: bearer test-token"
+    )
   end
 
   it "bounds and redacts failed command output" do
@@ -72,7 +82,7 @@ RSpec.describe Atlas::DeploymentAutomation do
   let(:checkout_root) { Pathname.new(Dir.mktmpdir("atlas-deployment-")) }
   let(:production_root) { checkout_root.join("production") }
   let(:staging_root) { checkout_root.join("staging") }
-  let(:runner) { instance_double(Atlas::DeploymentAutomation::CommandRunner) }
+  let(:runner) { instance_double(Atlas::DeploymentAutomation::DeploymentAutomationCommandRunner) }
   let(:automation) do
     described_class.new(
       runner:,
@@ -123,8 +133,20 @@ RSpec.describe Atlas::DeploymentAutomation do
     expect(runner).not_to have_received(:run)
   end
 
+  it "ignores deleted deployment refs without touching a checkout or remote ref" do
+    [ Atlas::DeploymentAutomation::MAIN_REF, Atlas::DeploymentAutomation::PRODUCTION_REF ].each do |ref|
+      event["ref"] = ref
+      event["deleted"] = "true"
+
+      expect(automation.run).to eq(:ignored)
+    end
+
+    expect(runner).not_to have_received(:capture)
+    expect(runner).not_to have_received(:run)
+  end
+
   it "does not deploy a stale production tag event" do
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/prod refs/tags/prod^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod", "b" * 40)
     )
 
@@ -133,17 +155,17 @@ RSpec.describe Atlas::DeploymentAutomation do
   end
 
   it "deploys the current production tag from a clean detached checkout" do
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/prod refs/tags/prod^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod", event.fetch("after"))
     )
-    allow(runner).to receive(:capture).with([ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
 
     expect(automation.run).to eq(:production)
     expect(runner).to have_received(:run).with(
-      [ "git", "fetch", "--no-tags", "origin", event.fetch("after") ], chdir: production_root.to_s, environment: {}
+      [ "git", "-c", "core.hooksPath=/dev/null", "fetch", "--no-tags", "origin", event.fetch("after") ], chdir: production_root.to_s, environment: {}
     ).ordered
     expect(runner).to have_received(:run).with(
-      [ "git", "checkout", "--detach", "--force", event.fetch("after") ], chdir: production_root.to_s, environment: {}
+      [ "git", "-c", "core.hooksPath=/dev/null", "checkout", "--detach", "--force", event.fetch("after") ], chdir: production_root.to_s, environment: {}
     ).ordered
     expect(runner).to have_received(:run).with(
       %w[bin/deploy update], chdir: production_root.to_s, environment: { "ATLAS_HOST" => "atlas.home.arpa" }
@@ -154,11 +176,11 @@ RSpec.describe Atlas::DeploymentAutomation do
   end
 
   it "rechecks production freshness after checkout synchronization" do
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/prod refs/tags/prod^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod", event.fetch("after")),
       ls_remote_line("refs/tags/prod", "b" * 40)
     )
-    allow(runner).to receive(:capture).with([ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
 
     expect { automation.run }.to raise_error(Atlas::Deployment::CommandError, /prod ref changed/)
     expect(runner).not_to have_received(:run).with(
@@ -168,7 +190,7 @@ RSpec.describe Atlas::DeploymentAutomation do
 
   it "leaves an absent staging tag unchanged" do
     event["ref"] = "refs/heads/main"
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/staging refs/tags/staging^{}]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return("")
 
     expect(automation.run).to eq(:ignored)
     expect(runner).not_to have_received(:run)
@@ -176,7 +198,7 @@ RSpec.describe Atlas::DeploymentAutomation do
 
   it "preserves an intentionally pinned staging tag" do
     event["ref"] = "refs/heads/main"
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/staging refs/tags/staging^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
       ls_remote_line("refs/tags/staging", "c" * 40)
     )
 
@@ -186,19 +208,19 @@ RSpec.describe Atlas::DeploymentAutomation do
 
   it "advances tracking staging with a compare-and-swap and deploys the new revision" do
     event["ref"] = "refs/heads/main"
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/staging refs/tags/staging^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
       ls_remote_line("refs/tags/staging", event.fetch("before")),
       ls_remote_line("refs/tags/staging", event.fetch("after"))
     )
-    allow(runner).to receive(:capture).with([ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
 
     expect(automation.run).to eq(:staging)
     expect(runner).to have_received(:run).with([
-      "git", "push", "origin", "#{event.fetch("after")}:refs/tags/staging",
+      "git", "-c", "core.hooksPath=/dev/null", "push", "origin", "#{event.fetch("after")}:refs/tags/staging",
       "--force-with-lease=refs/tags/staging:#{event.fetch("before")}"
     ]).ordered
     expect(runner).to have_received(:run).with(
-      [ "git", "checkout", "--detach", "--force", event.fetch("after") ], chdir: staging_root.to_s, environment: {}
+      [ "git", "-c", "core.hooksPath=/dev/null", "checkout", "--detach", "--force", event.fetch("after") ], chdir: staging_root.to_s, environment: {}
     ).ordered
     expect(runner).to have_received(:run).with(
       %w[bin/deploy update], chdir: staging_root.to_s, environment: { "ATLAS_HOST" => "atlas-staging.home.arpa" }
@@ -207,10 +229,10 @@ RSpec.describe Atlas::DeploymentAutomation do
 
   it "accepts an annotated production tag when its peeled commit matches" do
     tag_object = "b" * 40
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/prod refs/tags/prod^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod", tag_object) + ls_remote_line("refs/tags/prod^{}", event.fetch("after"))
     )
-    allow(runner).to receive(:capture).with([ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
 
     expect(automation.run).to eq(:production)
     expect(runner).to have_received(:run).with(
@@ -220,10 +242,10 @@ RSpec.describe Atlas::DeploymentAutomation do
 
   it "treats an already advanced staging tag as a safe retry" do
     event["ref"] = "refs/heads/main"
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/staging refs/tags/staging^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
       ls_remote_line("refs/tags/staging", event.fetch("after"))
     )
-    allow(runner).to receive(:capture).with([ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
 
     expect(automation.run).to eq(:staging)
     expect(runner).not_to have_received(:run).with(array_including("git", "push"))
@@ -235,26 +257,26 @@ RSpec.describe Atlas::DeploymentAutomation do
   it "uses an annotated staging tag object for the compare-and-swap lease" do
     event["ref"] = "refs/heads/main"
     tag_object = "c" * 40
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/staging refs/tags/staging^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
       ls_remote_line("refs/tags/staging", tag_object) + ls_remote_line("refs/tags/staging^{}", event.fetch("before")),
       ls_remote_line("refs/tags/staging", event.fetch("after"))
     )
-    allow(runner).to receive(:capture).with([ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
 
     expect(automation.run).to eq(:staging)
     expect(runner).to have_received(:run).with([
-      "git", "push", "origin", "#{event.fetch("after")}:refs/tags/staging",
+      "git", "-c", "core.hooksPath=/dev/null", "push", "origin", "#{event.fetch("after")}:refs/tags/staging",
       "--force-with-lease=refs/tags/staging:#{tag_object}"
     ])
   end
 
   it "fails visibly and does not deploy when staging compare-and-swap loses a race" do
     event["ref"] = "refs/heads/main"
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/staging refs/tags/staging^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
       ls_remote_line("refs/tags/staging", event.fetch("before"))
     )
     allow(runner).to receive(:run).with([
-      "git", "push", "origin", "#{event.fetch("after")}:refs/tags/staging",
+      "git", "-c", "core.hooksPath=/dev/null", "push", "origin", "#{event.fetch("after")}:refs/tags/staging",
       "--force-with-lease=refs/tags/staging:#{event.fetch("before")}"
     ]).and_raise(Atlas::Deployment::CommandError, "lease rejected; token=secret")
 
@@ -268,7 +290,7 @@ RSpec.describe Atlas::DeploymentAutomation do
 
   it "rejects a staging update when the post-push ref verification is not the requested revision" do
     event["ref"] = "refs/heads/main"
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/staging refs/tags/staging^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
       ls_remote_line("refs/tags/staging", event.fetch("before")),
       ls_remote_line("refs/tags/staging", "c" * 40)
     )
@@ -278,11 +300,11 @@ RSpec.describe Atlas::DeploymentAutomation do
   end
 
   it "rejects a checkout with tracked or visible untracked changes" do
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/prod refs/tags/prod^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod", event.fetch("after"))
     )
     allow(runner).to receive(:capture).with(
-      [ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ], chdir: production_root.to_s, environment: {}
+      [ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ], chdir: production_root.to_s, environment: {}
     ).and_return(" M compose.yaml\n")
 
     expect { automation.run }.to raise_error(Atlas::Deployment::CommandError, /not clean/)
@@ -290,11 +312,11 @@ RSpec.describe Atlas::DeploymentAutomation do
   end
 
   it "rejects ignored checkout state outside the approved environment and storage paths" do
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/prod refs/tags/prod^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod", event.fetch("after"))
     )
     allow(runner).to receive(:capture).with(
-      [ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ], chdir: production_root.to_s, environment: {}
+      [ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ], chdir: production_root.to_s, environment: {}
     ).and_return("!! local-compose.override\n")
 
     expect { automation.run }.to raise_error(Atlas::Deployment::CommandError, /unapproved ignored files/)
@@ -346,10 +368,10 @@ RSpec.describe Atlas::DeploymentAutomation do
   end
 
   it "stops before verification when the deployment command fails" do
-    allow(runner).to receive(:capture).with(%w[git ls-remote origin refs/tags/prod refs/tags/prod^{}]).and_return(
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod^{}", event.fetch("after"))
     )
-    allow(runner).to receive(:capture).with([ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
     allow(runner).to receive(:run).with(
       %w[bin/deploy update], chdir: production_root.to_s, environment: { "ATLAS_HOST" => "atlas.home.arpa" }
     ).and_raise(Atlas::Deployment::CommandError, "deploy failed; token=secret")

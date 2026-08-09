@@ -17,9 +17,10 @@ module Atlas
     SHA_PATTERN = /\A[0-9a-f]{7,64}\z/i
     MAX_DIAGNOSTIC_BYTES = 4_096
 
-    class CommandRunner
+    class DeploymentAutomationCommandRunner
       MAX_OUTPUT_BYTES = 32_768
       MAX_OUTPUT_LINES = 300
+      REMOTE_GIT_SUBCOMMANDS = %w[fetch ls-remote push].freeze
 
       def initialize(secret_values: [], git_auth: nil)
         @secret_values = Array(secret_values).filter_map do |value|
@@ -100,13 +101,27 @@ module Atlas
       end
 
       def command_environment(command, environment)
-        return environment unless command.first == "git" && @git_auth
+        return environment unless remote_git_command?(command) && @git_auth
 
         {
           "GIT_CONFIG_COUNT" => "1",
           "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
           "GIT_CONFIG_VALUE_0" => @git_auth
         }.merge(environment)
+      end
+
+      def remote_git_command?(command)
+        return false unless command.first == "git"
+
+        REMOTE_GIT_SUBCOMMANDS.include?(git_subcommand(command))
+      end
+
+      def git_subcommand(command)
+        index = 1
+        while command[index] == "-c"
+          index += 2
+        end
+        command[index]
       end
 
       def terminate(wait_thread)
@@ -155,7 +170,7 @@ module Atlas
       @staging_host = staging_host.to_s
       @deploy_command = Array(deploy_command).map(&:to_s).freeze
       @verify_command = Array(verify_command).map(&:to_s).freeze
-      @runner = runner || CommandRunner.new(secret_values: secret_values || deployment_secret_values, git_auth:)
+      @runner = runner || DeploymentAutomationCommandRunner.new(secret_values: secret_values || deployment_secret_values, git_auth:)
     end
 
     def run
@@ -247,7 +262,7 @@ module Atlas
     end
 
     def remote_ref_revisions(ref)
-      output = capture(%w[git ls-remote] + [ remote, ref, "#{ref}^{}" ])
+      output = capture(git_command("ls-remote", remote, ref, "#{ref}^{}"))
       revisions = output.to_s.lines.filter_map do |line|
         revision, returned_ref = line.split(/\s+/, 2)
         next unless revision && returned_ref
@@ -261,16 +276,16 @@ module Atlas
     def compare_and_swap_staging_ref(current_event, expected_revision:)
       after = current_event.fetch(:after)
       execute(
-        [
-          "git", "push", remote, "#{after}:#{STAGING_REF}",
+        git_command(
+          "push", remote, "#{after}:#{STAGING_REF}",
           "--force-with-lease=#{STAGING_REF}:#{expected_revision}"
-        ]
+        )
       )
     end
 
     def deploy_revision(root:, revision:, host:, before_deploy: nil)
       status = capture(
-        [ "git", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ],
+        git_command("status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage"),
         chdir: root
       )
       visible_changes = status.to_s.lines.reject { |line| line.start_with?("!! ") }
@@ -289,8 +304,8 @@ module Atlas
         raise CommandError, "deployment checkout contains unapproved ignored files: #{bounded_diagnostic(unexpected_ignored.join)}"
       end
 
-      execute([ "git", "fetch", "--no-tags", remote, revision ], chdir: root)
-      execute([ "git", "checkout", "--detach", "--force", revision ], chdir: root)
+      execute(git_command("fetch", "--no-tags", remote, revision), chdir: root)
+      execute(git_command("checkout", "--detach", "--force", revision), chdir: root)
       before_deploy&.call
       environment = { "ATLAS_HOST" => host }
       execute(deploy_command, environment:, chdir: root)
@@ -301,6 +316,10 @@ module Atlas
       return runner.run(command) if environment.empty? && chdir.nil?
 
       runner.run(command, environment:, chdir:)
+    end
+
+    def git_command(subcommand, *arguments)
+      [ "git", "-c", "core.hooksPath=/dev/null", subcommand, *arguments ]
     end
 
     def capture(command, environment: {}, chdir: nil)

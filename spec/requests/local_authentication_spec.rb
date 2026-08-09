@@ -62,6 +62,26 @@ RSpec.describe "Local authentication", type: :request do
     expect(page.text).to include("Preferred name can't be blank")
   end
 
+  it "rejects malformed email and short passwords without persisting anything" do
+    expect do
+      post "/users",
+           params: {
+             user: {
+               email: "not-an-email",
+               password: "short",
+               password_confirmation: "short",
+               preferred_name: "Signal Pilot"
+             }
+           }
+    end.not_to change(User, :count)
+
+    expect(Profile.count).to eq(0)
+    expect(response).to have_http_status(:unprocessable_entity)
+    page = Nokogiri::HTML(response.body)
+    expect(page.text).to include("Email is invalid")
+    expect(page.text).to include("Password is too short")
+  end
+
   it "rejects case-variant duplicate email addresses" do
     FactoryBot.create(:user, email: "pilot@example.com")
 
@@ -101,5 +121,24 @@ RSpec.describe "Local authentication", type: :request do
 
     expect(response).to redirect_to("/")
     expect(response.cookies["remember_user_token"]).to be_blank
+  end
+
+  it "does not authenticate with an incorrect password" do
+    user = FactoryBot.create(:user, email: "pilot@example.com", password: password, password_confirmation: password)
+
+    post "/users/sign_in",
+         params: {
+           user: {
+             email: user.email,
+             password: "incorrect-password"
+           }
+         }
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.cookies["remember_user_token"]).to be_blank
+
+    get "/profile"
+
+    expect(response).to redirect_to("/")
   end
 end

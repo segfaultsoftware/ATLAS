@@ -649,11 +649,32 @@ private keys, Rails secrets, or unneeded host addresses in this repository or
 in the linked tickets. Re-check the links and their completion evidence when
 the deployment system changes so the two repositories cannot silently drift.
 
-## Deferred work
+## Local authentication rollout
 
-Google OAuth is intentionally deferred to issue #55. This runbook does not
-configure OAuth, public exposure, general-purpose secret management, Caddy
-files, AdGuard Home, UFW, or Restic configuration.
+ATLAS uses local email/password accounts through Devise. The migration
+`20260809000100_remove_google_oauth_and_reset_users.rb` is a one-time,
+irreversible destructive reset for the local-authentication rollout. It deletes
+Profiles before Users, removes the remaining OAuth identity columns, and does
+not migrate existing OAuth accounts.
+
+Before deploying this revision, confirm a verified backup and an approved
+maintenance window. Run the migration through the normal deployment command:
+
+```sh
+bin/deploy update
+```
+
+The migration must run against the intended disposable or approved deployment
+database only after the data-discard implications have been reviewed. Do not
+run it against production data without the application's approved destructive
+rollout procedure. Existing users and profiles will be removed; users must
+register again after the reset. The migration is irreversible, so rollback
+requires restoring a verified database backup rather than running
+`db:rollback`. There is no OAuth account migration or password-recovery feature
+in this rollout.
+
+This runbook still does not configure public exposure, general-purpose secret
+management, Caddy files, AdGuard Home, UFW, or Restic configuration.
 
 ## Documentation validation
 

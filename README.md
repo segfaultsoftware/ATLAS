@@ -14,13 +14,19 @@ ATLAS (Astrogation, Transit & Logistics Access System) is a webapp which functio
 
 - [ATLAS SRD](docs/srd/atlas-srd.md)
 
+## Authentication
+
+ATLAS uses local email/password accounts. New users can register through the
+standard signup page, and existing locally authenticated users can be promoted
+to Webadmin by an operator.
+
 ## Manual
 
 The database-backed Manual uses the landing-page slug configured by
 `Rails.configuration.x.manual.landing_page_slug`. It defaults to `index` and
 can be overridden with the `MANUAL_LANDING_PAGE_SLUG` environment variable.
 
-To promote an existing Google-authenticated user to Webadmin, run:
+To promote an existing locally authenticated user to Webadmin, run:
 
 ```sh
 bin/rails console

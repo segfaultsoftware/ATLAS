@@ -27,14 +27,8 @@ RSpec.describe "Authentication routes", type: :request do
     expect { route_for(:post, "/users/password") }.to raise_error(ActionController::RoutingError)
   end
 
-  it "keeps the temporary Google OAuth callback routes until the removal task" do
-    expect(route_for(:post, "/users/auth/google_oauth2")).to include(
-      controller: "users/omniauth_callbacks",
-      action: "passthru"
-    )
-    expect(route_for(:get, "/users/auth/google_oauth2/callback")).to include(
-      controller: "users/omniauth_callbacks",
-      action: "google_oauth2"
-    )
+  it "does not expose Google OAuth callback routes" do
+    expect { route_for(:post, "/users/auth/google_oauth2") }.to raise_error(ActionController::RoutingError)
+    expect { route_for(:get, "/users/auth/google_oauth2/callback") }.to raise_error(ActionController::RoutingError)
   end
 end

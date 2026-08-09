@@ -23,11 +23,10 @@ RSpec.describe User, type: :model do
   end
 
   it "rejects case-variant duplicate email addresses" do
-    FactoryBot.create(:user, uid: "google-123", email: "first@example.com")
+    FactoryBot.create(:user, email: "first@example.com")
 
     duplicate = FactoryBot.build(
       :user,
-      uid: "google-456",
       email: "FIRST@EXAMPLE.COM"
     )
 
@@ -57,13 +56,20 @@ RSpec.describe User, type: :model do
     expect(Profile.where(preferred_name: user.preferred_name)).to be_empty
   end
 
-  it "owns one app-facing profile separately from Google identity data" do
+  it "owns one app-facing profile" do
     user = FactoryBot.create(:user)
 
     profile = user.create_profile!(preferred_name: "Pilot")
 
     expect(user.profile).to eq(profile)
     expect(profile.user).to eq(user)
+  end
+
+  it "does not expose OAuth identity authentication" do
+    expect(described_class.devise_modules).not_to include(:omniauthable)
+    expect(FactoryBot.build(:user)).not_to respond_to(:provider)
+    expect(FactoryBot.build(:user)).not_to respond_to(:uid)
+    expect(described_class).not_to respond_to(:find_or_create_from_google_oauth!)
   end
 
   it "defaults users to the User role" do

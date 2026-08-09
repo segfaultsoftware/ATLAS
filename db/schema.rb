@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_09_000100) do
   create_table "celestial_bodies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -74,14 +74,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_000000) do
     t.string "email", null: false
     t.string "encrypted_password", default: "", null: false
     t.string "name"
-    t.string "provider"
     t.datetime "remember_created_at"
     t.string "remember_token"
     t.string "role", default: "user", null: false
-    t.string "uid"
     t.datetime "updated_at", null: false
     t.index "LOWER(email)", name: "index_users_on_lower_email", unique: true
-    t.index ["provider", "uid"], name: "index_users_on_provider_and_uid", unique: true
     t.index ["remember_token"], name: "index_users_on_remember_token", unique: true
     t.index ["role"], name: "index_users_on_role"
   end

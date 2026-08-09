@@ -1,9 +1,8 @@
 Rails.application.routes.draw do
   devise_for :users,
-             only: [ :sessions, :registrations, :omniauth_callbacks ],
+             only: [ :sessions, :registrations ],
              controllers: {
-               registrations: "users/registrations",
-               omniauth_callbacks: "users/omniauth_callbacks"
+               registrations: "users/registrations"
              }
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html

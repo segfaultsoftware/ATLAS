@@ -1,5 +1,5 @@
 class ApplicationController < ActionController::Base
-  before_action :require_authenticated_user!
+  before_action :require_authenticated_user!, unless: :devise_controller?
   before_action :cache_header_avatar_key, if: :user_signed_in?
 
   helper_method :header_avatar_emoji

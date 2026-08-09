@@ -159,8 +159,7 @@ module Atlas
       staging_root: ENV.fetch("ATLAS_STAGING_ROOT", DEFAULT_STAGING_ROOT),
       production_host: ENV.fetch("ATLAS_PRODUCTION_HOST", PRODUCTION_HOST),
       staging_host: ENV.fetch("ATLAS_STAGING_HOST", STAGING_HOST),
-      deploy_command: %w[bin/deploy update],
-      verify_command: %w[bin/verify-deployment]
+      deploy_command: %w[bin/deploy update]
     )
       @event = event
       @remote = remote.to_s
@@ -169,7 +168,6 @@ module Atlas
       @production_host = production_host.to_s
       @staging_host = staging_host.to_s
       @deploy_command = Array(deploy_command).map(&:to_s).freeze
-      @verify_command = Array(verify_command).map(&:to_s).freeze
       @runner = runner || DeploymentAutomationCommandRunner.new(secret_values: secret_values || deployment_secret_values, git_auth:)
     end
 
@@ -193,7 +191,7 @@ module Atlas
     private
 
     attr_reader :runner, :remote, :production_root, :staging_root,
-      :production_host, :staging_host, :deploy_command, :verify_command
+      :production_host, :staging_host, :deploy_command
 
     def normalized_event
       event_name = value_from_event("name", "GITHUB_EVENT_NAME")
@@ -309,7 +307,6 @@ module Atlas
       before_deploy&.call
       environment = { "ATLAS_HOST" => host }
       execute(deploy_command, environment:, chdir: root)
-      execute(verify_command, environment:, chdir: root)
     end
 
     def execute(command, environment: {}, chdir: nil)

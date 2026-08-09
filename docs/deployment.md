@@ -76,9 +76,11 @@ ordinary push workflow.
 
 Every deployment synchronizes a clean host checkout, preserves the ignored
 `.env` and persistent `storage`, checks out the requested revision detached,
-then runs `bin/deploy update` followed by `bin/verify-deployment`. The existing
-Compose readiness, endpoint, persistence, and secret-hygiene checks remain the
-source of deployment verification.
+then runs `bin/deploy update`, which performs the deployment readiness and
+verification checks through `Atlas::Deployment::DeployWorkflow`. The automation
+does not run `bin/verify-deployment` a second time. That command remains the
+separate operator-facing handoff verifier for manual checks outside the
+automated deployment path.
 
 ### Operator validation and recovery evidence
 

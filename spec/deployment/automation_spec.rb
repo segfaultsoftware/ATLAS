@@ -169,10 +169,10 @@ RSpec.describe Atlas::DeploymentAutomation do
     ).ordered
     expect(runner).to have_received(:run).with(
       %w[bin/deploy update], chdir: production_root.to_s, environment: { "ATLAS_HOST" => "atlas.home.arpa" }
-    ).ordered
-    expect(runner).to have_received(:run).with(
+    ).once.ordered
+    expect(runner).not_to have_received(:run).with(
       %w[bin/verify-deployment], chdir: production_root.to_s, environment: { "ATLAS_HOST" => "atlas.home.arpa" }
-    ).ordered
+    )
   end
 
   it "rechecks production freshness after checkout synchronization" do
@@ -224,7 +224,10 @@ RSpec.describe Atlas::DeploymentAutomation do
     ).ordered
     expect(runner).to have_received(:run).with(
       %w[bin/deploy update], chdir: staging_root.to_s, environment: { "ATLAS_HOST" => "atlas-staging.home.arpa" }
-    ).ordered
+    ).once.ordered
+    expect(runner).not_to have_received(:run).with(
+      %w[bin/verify-deployment], chdir: staging_root.to_s, environment: { "ATLAS_HOST" => "atlas-staging.home.arpa" }
+    )
   end
 
   it "accepts an annotated production tag when its peeled commit matches" do
@@ -367,7 +370,7 @@ RSpec.describe Atlas::DeploymentAutomation do
     expect(repository.join("storage/uploads.txt").read).to eq("persistent\n")
   end
 
-  it "stops before verification when the deployment command fails" do
+  it "propagates deployment command failure without invoking bin/verify-deployment" do
     allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/prod", "refs/tags/prod^{}" ]).and_return(
       ls_remote_line("refs/tags/prod^{}", event.fetch("after"))
     )

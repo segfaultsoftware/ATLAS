@@ -76,6 +76,11 @@ RSpec.describe "the deployment documentation contract" do
     end
   end
 
+  it "documents that automated updates use the deployment workflow as the verifier" do
+    expect(documentation).to match(/`bin\/deploy update`, which performs the deployment readiness and\s+verification checks/)
+    expect(documentation).to match(/The automation\s+does not run `bin\/verify-deployment` a second time/)
+  end
+
   it "keeps examples free of secrets, private keys, and literal network addresses" do
     expect(documentation).not_to match(/-----BEGIN [^-]*PRIVATE KEY-----/)
     expect(documentation).not_to match(/(?:RAILS_MASTER_KEY\s*=\s*(?!FILE=)|(?:password|token|api[_-]?key)\s*[:=]\s*\S+)/i)

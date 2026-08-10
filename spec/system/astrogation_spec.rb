@@ -188,8 +188,11 @@ RSpec.describe "Astrogation", type: :system, system: true do
   end
 
   it "renders the same presentation after refresh without persistence" do
+    expect(AstrogationSystemTesting).to receive(:wait_for_stable_astrogation_layout).twice.and_call_original
+
     visit "/astrogation"
     initial_record_counts = [ User.count, Profile.count ]
+    AstrogationSystemTesting.wait_for_stable_astrogation_layout(page)
     initial_signature = page.evaluate_script(<<~JAVASCRIPT)
       JSON.stringify({
         entities: document.querySelector('#astrogation-system').dataset.astrogationEntities,
@@ -203,6 +206,7 @@ RSpec.describe "Astrogation", type: :system, system: true do
     JAVASCRIPT
 
     refresh
+    AstrogationSystemTesting.wait_for_stable_astrogation_layout(page)
 
     expect([ User.count, Profile.count ]).to eq(initial_record_counts)
     expect(page.evaluate_script(<<~JAVASCRIPT)).to eq(initial_signature)

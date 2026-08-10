@@ -181,6 +181,8 @@ module Atlas
         deploy_production(current_event)
       when MAIN_REF
         advance_and_deploy_staging(current_event)
+      when STAGING_REF
+        deploy_staging_tag(current_event)
       else
         :ignored
       end
@@ -200,7 +202,7 @@ module Atlas
       after = value_from_event("after", "GITHUB_SHA")
       deleted = boolean_value(value_from_event("deleted", "GITHUB_REF_DELETED"))
 
-      return { name: event_name, ref:, before:, after:, deleted: } unless event_name == "push" && [ PRODUCTION_REF, MAIN_REF ].include?(ref)
+      return { name: event_name, ref:, before:, after:, deleted: } unless event_name == "push" && [ PRODUCTION_REF, MAIN_REF, STAGING_REF ].include?(ref)
 
       raise ArgumentError, "deployment event name is required" if event_name.to_s.empty?
       raise ArgumentError, "deployment event revision is invalid" unless valid_sha?(after)
@@ -246,12 +248,25 @@ module Atlas
         raise CommandError, "staging ref did not advance to #{current_event.fetch(:after)}" unless remote_revision(STAGING_REF) == current_event.fetch(:after)
       end
 
+      deploy_staging_revision(current_event.fetch(:after))
+      :staging
+    end
+
+    def deploy_staging_tag(current_event)
+      return :ignored unless remote_revision(STAGING_REF) == current_event.fetch(:after)
+
+      deploy_staging_revision(current_event.fetch(:after))
+      :staging
+    end
+
+    def deploy_staging_revision(revision)
       deploy_revision(
         root: staging_root,
-        revision: current_event.fetch(:after),
-        host: staging_host
+        revision:,
+        host: staging_host,
+        before_checkout: -> { ensure_current_staging(revision) },
+        before_deploy: -> { ensure_current_staging(revision) }
       )
-      :staging
     end
 
     def remote_revision(ref)
@@ -281,7 +296,7 @@ module Atlas
       )
     end
 
-    def deploy_revision(root:, revision:, host:, before_deploy: nil)
+    def deploy_revision(root:, revision:, host:, before_checkout: nil, before_deploy: nil)
       status = capture(
         git_command("status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage"),
         chdir: root
@@ -303,6 +318,7 @@ module Atlas
       end
 
       execute(git_command("fetch", "--no-tags", remote, revision), chdir: root)
+      before_checkout&.call
       execute(git_command("checkout", "--detach", "--force", revision), chdir: root)
       before_deploy&.call
       environment = { "ATLAS_HOST" => host }
@@ -342,6 +358,12 @@ module Atlas
       return if remote_revision(PRODUCTION_REF) == revision
 
       raise CommandError, "prod ref changed before deployment; refusing revision #{revision}"
+    end
+
+    def ensure_current_staging(revision)
+      return if remote_revision(STAGING_REF) == revision
+
+      raise CommandError, "staging ref changed before deployment; refusing revision #{revision}"
     end
 
     def deployment_secret_values

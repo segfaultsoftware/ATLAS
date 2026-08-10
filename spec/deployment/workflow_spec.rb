@@ -11,19 +11,21 @@ RSpec.describe "deployment workflow contract" do
   let(:ci_on_config) { ci_workflow["on"] || ci_workflow.fetch(true) }
   let(:jobs) { workflow.fetch("jobs") }
   let(:production_job) { jobs.fetch("deploy_production") }
-  let(:staging_job) { jobs.fetch("deploy_staging") }
-  let(:deployment_jobs) { [ production_job, staging_job ] }
+  let(:staging_main_job) { jobs.fetch("deploy_staging_from_main") }
+  let(:staging_tag_job) { jobs.fetch("deploy_staging_from_tag") }
+  let(:deployment_jobs) { [ production_job, staging_main_job, staging_tag_job ] }
 
   it "triggers only for the trusted deployment refs" do
     expect(on_config.keys).to contain_exactly("push")
     expect(on_config.fetch("push").fetch("branches")).to contain_exactly("main")
-    expect(on_config.fetch("push").fetch("tags")).to contain_exactly("prod")
+    expect(on_config.fetch("push").fetch("tags")).to contain_exactly("prod", "staging")
   end
 
-  it "defaults to read-only repository access and scopes staging write access to its job" do
+  it "keeps built-in workflow tokens read-only" do
     expect(workflow.fetch("permissions")).to eq("contents" => "read")
     expect(production_job.fetch("permissions")).to eq("contents" => "read")
-    expect(staging_job.fetch("permissions")).to eq("contents" => "write")
+    expect(staging_main_job.fetch("permissions")).to eq("contents" => "read")
+    expect(staging_tag_job.fetch("permissions")).to eq("contents" => "read")
   end
 
   it "serializes deployment mutations on the dedicated runner" do
@@ -41,7 +43,10 @@ RSpec.describe "deployment workflow contract" do
 
   it "routes each trusted ref to its permission-scoped job" do
     expect(production_job.fetch("if")).to eq("github.ref == 'refs/tags/prod'")
-    expect(staging_job.fetch("if")).to eq("github.ref == 'refs/heads/main'")
+    expect(staging_main_job.fetch("if")).to eq("github.ref == 'refs/heads/main'")
+    expect(staging_tag_job.fetch("if")).to eq(
+      "github.ref == 'refs/tags/staging' && github.actor != 'atlas-staging-tag-automation[bot]'"
+    )
   end
 
   it "does not persist checkout credentials and invokes the tested entry point" do
@@ -59,20 +64,45 @@ RSpec.describe "deployment workflow contract" do
     end
   end
 
-  it "passes deletion state and ephemeral Git authentication without copying it into application secrets" do
-    deployment_jobs.each do |job|
-      deployment = job.fetch("steps").find { |step| step.fetch("name") == "Run deployment automation" }
-      environment = deployment.fetch("env")
+  it "uses the built-in token only for production's read-only deployment" do
+    deployment = production_job.fetch("steps").find { |step| step.fetch("name") == "Run deployment automation" }
+    environment = deployment.fetch("env")
 
-      expect(environment).to include(
-        "GITHUB_BEFORE" => "${{ github.event.before }}",
-        "GITHUB_REF_DELETED" => "${{ github.event.deleted }}",
-        "GIT_CONFIG_COUNT" => "1",
-        "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader"
-      )
-      expect(environment.fetch("GIT_CONFIG_VALUE_0")).to include("${{ github.token }}")
-      expect(deployment.fetch("run")).not_to include("echo", "secrets.")
-    end
+    expect(environment).to include(
+      "GITHUB_BEFORE" => "${{ github.event.before }}",
+      "GITHUB_REF_DELETED" => "${{ github.event.deleted }}",
+      "GIT_CONFIG_COUNT" => "1",
+      "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader"
+    )
+    expect(environment.fetch("GIT_CONFIG_VALUE_0")).to include("${{ github.token }}")
+    expect(deployment.fetch("run")).not_to include("echo", "secrets.")
+  end
+
+  it "mints a dedicated GitHub App token only for main-driven staging-tag updates" do
+    token_step = staging_main_job.fetch("steps").find { |step| step["id"] == "staging_tag_token" }
+    deployment = staging_main_job.fetch("steps").find { |step| step.fetch("name") == "Run deployment automation" }
+    environment = deployment.fetch("env")
+
+    expect(staging_main_job.fetch("environment")).to eq("staging-tag-automation")
+    expect(token_step.fetch("uses")).to eq("actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1")
+    expect(token_step.fetch("with")).to eq(
+      "client-id" => "${{ vars.STAGING_TAG_APP_CLIENT_ID }}",
+      "private-key" => "${{ secrets.STAGING_TAG_APP_PRIVATE_KEY }}",
+      "permission-contents" => "write"
+    )
+    expect(environment.fetch("GIT_CONFIG_VALUE_0")).to eq("AUTHORIZATION: bearer ${{ steps.staging_tag_token.outputs.token }}")
+    expect(deployment.fetch("run")).not_to include("echo", "secrets.")
+  end
+
+  it "uses only the read-only built-in token for operator-driven staging-tag deployments" do
+    token_step = staging_tag_job.fetch("steps").find { |step| step["id"] == "staging_tag_token" }
+    deployment = staging_tag_job.fetch("steps").find { |step| step.fetch("name") == "Run deployment automation" }
+    environment = deployment.fetch("env")
+
+    expect(staging_tag_job).not_to have_key("environment")
+    expect(token_step).to be_nil
+    expect(environment.fetch("GIT_CONFIG_VALUE_0")).to eq("AUTHORIZATION: bearer ${{ github.token }}")
+    expect(deployment.fetch("run")).not_to include("echo", "secrets.")
   end
 
   it "keeps public CI on hosted runners with its pull-request boundary" do

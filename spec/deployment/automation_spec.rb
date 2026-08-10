@@ -134,7 +134,7 @@ RSpec.describe Atlas::DeploymentAutomation do
   end
 
   it "ignores deleted deployment refs without touching a checkout or remote ref" do
-    [ Atlas::DeploymentAutomation::MAIN_REF, Atlas::DeploymentAutomation::PRODUCTION_REF ].each do |ref|
+    [ Atlas::DeploymentAutomation::MAIN_REF, Atlas::DeploymentAutomation::PRODUCTION_REF, Atlas::DeploymentAutomation::STAGING_REF ].each do |ref|
       event["ref"] = ref
       event["deleted"] = "true"
 
@@ -151,6 +151,17 @@ RSpec.describe Atlas::DeploymentAutomation do
     )
 
     expect(automation.run).to eq(:ignored)
+    expect(runner).not_to have_received(:run)
+  end
+
+  it "does not deploy a stale staging tag event" do
+    event["ref"] = Atlas::DeploymentAutomation::STAGING_REF
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
+      ls_remote_line("refs/tags/staging", "b" * 40)
+    )
+
+    expect(automation.run).to eq(:ignored)
+    expect(runner).to have_received(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ])
     expect(runner).not_to have_received(:run)
   end
 
@@ -173,6 +184,81 @@ RSpec.describe Atlas::DeploymentAutomation do
     expect(runner).not_to have_received(:run).with(
       %w[bin/verify-deployment], chdir: production_root.to_s, environment: { "ATLAS_HOST" => "atlas.home.arpa" }
     )
+  end
+
+  it "deploys the current staging tag target without advancing the tag" do
+    event["ref"] = Atlas::DeploymentAutomation::STAGING_REF
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
+      ls_remote_line("refs/tags/staging", event.fetch("after"))
+    )
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+
+    expect(automation.run).to eq(:staging)
+    expect(runner).to have_received(:run).with(
+      [ "git", "-c", "core.hooksPath=/dev/null", "checkout", "--detach", "--force", event.fetch("after") ], chdir: staging_root.to_s, environment: {}
+    ).ordered
+    expect(runner).to have_received(:run).with(
+      %w[bin/deploy update], chdir: staging_root.to_s, environment: { "ATLAS_HOST" => "atlas-staging.home.arpa" }
+    ).once.ordered
+    expect(runner).not_to have_received(:run).with(array_including("git", "push"))
+  end
+
+  it "deploys an annotated staging tag only when its peeled target matches without advancing the tag" do
+    event["ref"] = Atlas::DeploymentAutomation::STAGING_REF
+    tag_object = "b" * 40
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
+      ls_remote_line("refs/tags/staging", tag_object) + ls_remote_line("refs/tags/staging^{}", event.fetch("after"))
+    )
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+
+    expect(automation.run).to eq(:staging)
+    expect(runner).to have_received(:run).with(
+      %w[bin/deploy update], chdir: staging_root.to_s, environment: { "ATLAS_HOST" => "atlas-staging.home.arpa" }
+    )
+    expect(runner).not_to have_received(:run).with(array_including("git", "push"))
+  end
+
+  it "does not deploy a staging tag whose remote target disappears" do
+    event["ref"] = Atlas::DeploymentAutomation::STAGING_REF
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return("")
+
+    expect(automation.run).to eq(:ignored)
+    expect(runner).to have_received(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ])
+    expect(runner).not_to have_received(:run)
+  end
+
+  it "does not deploy when a staging tag changes while its checkout is being synchronized" do
+    event["ref"] = Atlas::DeploymentAutomation::STAGING_REF
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
+      ls_remote_line("refs/tags/staging", event.fetch("after")),
+      ls_remote_line("refs/tags/staging", "b" * 40)
+    )
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+
+    expect { automation.run }.to raise_error(Atlas::Deployment::CommandError, /staging ref changed/)
+    expect(runner).not_to have_received(:run).with(
+      %w[bin/deploy update], chdir: staging_root.to_s, environment: { "ATLAS_HOST" => "atlas-staging.home.arpa" }
+    )
+    expect(runner).not_to have_received(:run).with(array_including("git", "push"))
+  end
+
+  it "does not deploy when a staging tag changes after checkout synchronization" do
+    event["ref"] = Atlas::DeploymentAutomation::STAGING_REF
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "ls-remote", "origin", "refs/tags/staging", "refs/tags/staging^{}" ]).and_return(
+      ls_remote_line("refs/tags/staging", event.fetch("after")),
+      ls_remote_line("refs/tags/staging", event.fetch("after")),
+      ls_remote_line("refs/tags/staging", "b" * 40)
+    )
+    allow(runner).to receive(:capture).with([ "git", "-c", "core.hooksPath=/dev/null", "status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage" ]).and_return("")
+
+    expect { automation.run }.to raise_error(Atlas::Deployment::CommandError, /staging ref changed/)
+    expect(runner).to have_received(:run).with(
+      [ "git", "-c", "core.hooksPath=/dev/null", "checkout", "--detach", "--force", event.fetch("after") ], chdir: staging_root.to_s, environment: {}
+    )
+    expect(runner).not_to have_received(:run).with(
+      %w[bin/deploy update], chdir: staging_root.to_s, environment: { "ATLAS_HOST" => "atlas-staging.home.arpa" }
+    )
+    expect(runner).not_to have_received(:run).with(array_including("git", "push"))
   end
 
   it "rechecks production freshness after checkout synchronization" do

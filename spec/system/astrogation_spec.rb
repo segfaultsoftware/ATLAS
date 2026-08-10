@@ -124,6 +124,8 @@ RSpec.describe "Astrogation", type: :system, system: true do
   end
 
   it "keeps every entity label above its marker with a screen-space gap" do
+    expect(AstrogationSystemTesting).to receive(:wait_for_stable_astrogation_layout).exactly(4).times.and_call_original
+
     visit "/astrogation"
 
     expect_entity_labels_above_markers
@@ -186,8 +188,11 @@ RSpec.describe "Astrogation", type: :system, system: true do
   end
 
   it "renders the same presentation after refresh without persistence" do
+    expect(AstrogationSystemTesting).to receive(:wait_for_stable_astrogation_layout).twice.and_call_original
+
     visit "/astrogation"
     initial_record_counts = [ User.count, Profile.count ]
+    AstrogationSystemTesting.wait_for_stable_astrogation_layout(page)
     initial_signature = page.evaluate_script(<<~JAVASCRIPT)
       JSON.stringify({
         entities: document.querySelector('#astrogation-system').dataset.astrogationEntities,
@@ -201,6 +206,7 @@ RSpec.describe "Astrogation", type: :system, system: true do
     JAVASCRIPT
 
     refresh
+    AstrogationSystemTesting.wait_for_stable_astrogation_layout(page)
 
     expect([ User.count, Profile.count ]).to eq(initial_record_counts)
     expect(page.evaluate_script(<<~JAVASCRIPT)).to eq(initial_signature)
@@ -219,25 +225,18 @@ RSpec.describe "Astrogation", type: :system, system: true do
   private
 
   def expect_entity_labels_above_markers
-    geometries = page.evaluate_script(<<~JAVASCRIPT)
-      (() => {
-        const labels = new Map(
-          [...document.querySelectorAll('[data-astrogation-label]')].map((label) => [label.dataset.astrogationLabel, label])
-        )
+    layout = AstrogationSystemTesting.wait_for_stable_astrogation_layout(page)
+    geometries = layout.fetch("entities").map do |entity|
+      marker_rect = entity.fetch("markerRect")
+      label_rect = entity.fetch("labelRect")
 
-        return [...document.querySelectorAll('[data-astrogation-marker]')].map((marker) => {
-          const label = labels.get(marker.dataset.astrogationMarker)
-          const markerRect = marker.getBoundingClientRect()
-          const labelRect = label.getBoundingClientRect()
-
-          return {
-            name: marker.dataset.astrogationMarker,
-            topGap: markerRect.top - labelRect.bottom,
-            centerDelta: ((labelRect.left + labelRect.right) / 2) - ((markerRect.left + markerRect.right) / 2)
-          }
-        })
-      })()
-    JAVASCRIPT
+      {
+        "name" => entity.fetch("name"),
+        "topGap" => marker_rect.fetch("top") - label_rect.fetch("bottom"),
+        "centerDelta" => ((label_rect.fetch("left") + label_rect.fetch("right")) / 2) -
+          ((marker_rect.fetch("left") + marker_rect.fetch("right")) / 2)
+      }
+    end
 
     expect(geometries.map { |geometry| geometry["name"] }).to contain_exactly(
       "Tejat A", "Tejat B", "Tejat C", "Ketrak Station", "Gate Alpha", "Gate Beta", "Ship"

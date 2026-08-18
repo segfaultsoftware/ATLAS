@@ -107,7 +107,8 @@ module Atlas
         {
           "GIT_CONFIG_COUNT" => "1",
           "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
-          "GIT_CONFIG_VALUE_0" => @git_auth
+          "GIT_CONFIG_VALUE_0" => @git_auth,
+          "GIT_TERMINAL_PROMPT" => "0"
         }.merge(environment)
       end
 

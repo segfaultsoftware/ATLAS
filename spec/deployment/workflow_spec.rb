@@ -64,17 +64,18 @@ RSpec.describe "deployment workflow contract" do
     end
   end
 
-  it "uses the built-in token only for production's read-only deployment" do
+  it "passes the built-in token to production's deployment launcher" do
     deployment = production_job.fetch("steps").find { |step| step.fetch("name") == "Run deployment automation" }
     environment = deployment.fetch("env")
 
     expect(environment).to include(
       "GITHUB_BEFORE" => "${{ github.event.before }}",
       "GITHUB_REF_DELETED" => "${{ github.event.deleted }}",
-      "GIT_CONFIG_COUNT" => "1",
-      "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader"
+      "ATLAS_DEPLOYMENT_TOKEN" => "${{ github.token }}"
     )
-    expect(environment.fetch("GIT_CONFIG_VALUE_0")).to include("${{ github.token }}")
+    expect(environment).not_to have_key("GIT_CONFIG_COUNT")
+    expect(environment).not_to have_key("GIT_CONFIG_KEY_0")
+    expect(environment).not_to have_key("GIT_CONFIG_VALUE_0")
     expect(deployment.fetch("run")).not_to include("echo", "secrets.")
   end
 
@@ -90,7 +91,10 @@ RSpec.describe "deployment workflow contract" do
       "private-key" => "${{ secrets.STAGING_TAG_APP_PRIVATE_KEY }}",
       "permission-contents" => "write"
     )
-    expect(environment.fetch("GIT_CONFIG_VALUE_0")).to eq("AUTHORIZATION: bearer ${{ steps.staging_tag_token.outputs.token }}")
+    expect(environment.fetch("ATLAS_DEPLOYMENT_TOKEN")).to eq("${{ steps.staging_tag_token.outputs.token }}")
+    expect(environment).not_to have_key("GIT_CONFIG_COUNT")
+    expect(environment).not_to have_key("GIT_CONFIG_KEY_0")
+    expect(environment).not_to have_key("GIT_CONFIG_VALUE_0")
     expect(deployment.fetch("run")).not_to include("echo", "secrets.")
   end
 
@@ -101,7 +105,10 @@ RSpec.describe "deployment workflow contract" do
 
     expect(staging_tag_job).not_to have_key("environment")
     expect(token_step).to be_nil
-    expect(environment.fetch("GIT_CONFIG_VALUE_0")).to eq("AUTHORIZATION: bearer ${{ github.token }}")
+    expect(environment.fetch("ATLAS_DEPLOYMENT_TOKEN")).to eq("${{ github.token }}")
+    expect(environment).not_to have_key("GIT_CONFIG_COUNT")
+    expect(environment).not_to have_key("GIT_CONFIG_KEY_0")
+    expect(environment).not_to have_key("GIT_CONFIG_VALUE_0")
     expect(deployment.fetch("run")).not_to include("echo", "secrets.")
   end
 
@@ -111,9 +118,12 @@ RSpec.describe "deployment workflow contract" do
     expect(ci_workflow.to_s).not_to include("atlas-deployment", "self-hosted")
   end
 
-  it "clears Git authentication before loading repository deployment code" do
+  it "derives Basic authentication after clearing raw credentials before loading repository deployment code" do
     entrypoint = File.read(File.expand_path("../../bin/deployment-automation", __dir__))
 
     expect(entrypoint.index('ENV.delete("GIT_CONFIG_VALUE_0")')).to be < entrypoint.index('require_relative "../lib/atlas/deployment_automation"')
+    expect(entrypoint.index('ENV.delete("ATLAS_DEPLOYMENT_TOKEN")')).to be < entrypoint.index('require_relative "../lib/atlas/deployment_automation"')
+    expect(entrypoint).to include('Base64.strict_encode64("x-access-token:#{git_token}")')
+    expect(entrypoint).to include('AUTHORIZATION: basic #{encoded_token}')
   end
 end

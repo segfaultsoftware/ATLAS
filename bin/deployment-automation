@@ -1,8 +1,15 @@
 #!/usr/bin/env ruby
 
-git_auth = ENV.delete("GIT_CONFIG_VALUE_0")
+require "base64"
+
+git_token = ENV.delete("ATLAS_DEPLOYMENT_TOKEN")
 ENV.delete("GIT_CONFIG_COUNT")
 ENV.delete("GIT_CONFIG_KEY_0")
+ENV.delete("GIT_CONFIG_VALUE_0")
+
+encoded_token = Base64.strict_encode64("x-access-token:#{git_token}") unless git_token.nil? || git_token.empty?
+git_auth = "AUTHORIZATION: basic #{encoded_token}" unless encoded_token.nil?
+git_token = nil
 
 require_relative "../lib/atlas/deployment_automation"
 

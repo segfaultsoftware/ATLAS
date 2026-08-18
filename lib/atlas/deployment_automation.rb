@@ -21,6 +21,7 @@ module Atlas
       MAX_OUTPUT_BYTES = 32_768
       MAX_OUTPUT_LINES = 300
       REMOTE_GIT_SUBCOMMANDS = %w[fetch ls-remote push].freeze
+      GIT_OBJECT_ID_PATTERN = /\A[0-9a-f]{40,64}\z/i
 
       def initialize(secret_values: [], git_auth: nil)
         @secret_values = Array(secret_values).filter_map do |value|
@@ -42,7 +43,7 @@ module Atlas
 
       def capture(command, environment: {}, chdir: nil)
         stdout, stderr, status = execute(command, environment:, chdir:)
-        return sanitize(stdout) if status.success?
+        return sanitize(stdout, preserve_git_object_ids: ref_reading_command?(command)) if status.success?
 
         raise CommandError, failure_message(command, status, stderr)
       end
@@ -116,6 +117,12 @@ module Atlas
         REMOTE_GIT_SUBCOMMANDS.include?(git_subcommand(command))
       end
 
+      def ref_reading_command?(command)
+        return false unless command.first == "git"
+
+        %w[ls-remote rev-parse].include?(git_subcommand(command))
+      end
+
       def git_subcommand(command)
         index = 1
         while command[index] == "-c"
@@ -138,13 +145,15 @@ module Atlas
         value.to_s.lines.first(MAX_OUTPUT_LINES).join.byteslice(0, MAX_OUTPUT_BYTES).to_s.scrub
       end
 
-      def sanitize(value)
+      def sanitize(value, preserve_git_object_ids: false)
         sanitized = value.to_s.dup
         secret_values.each { |secret| sanitized.gsub!(secret, "[REDACTED]") }
         sanitized.gsub!(/(Bearer\s+)([^\s]+)/i, "\\1[REDACTED]")
         sanitized.gsub!(/((?:rails[_ -]?master[_ -]?key|password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)\s*[:=]\s*)("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/i, "\\1[REDACTED]")
         sanitized.gsub!(/((?:authorization|proxy-authorization)\s*[:=]\s*)(?!Bearer\b)("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/i, "\\1[REDACTED]")
-        sanitized.gsub!(/(?<![A-Za-z0-9])[A-Za-z0-9+\/_-]{24,}={0,2}(?![A-Za-z0-9])/, "[REDACTED]")
+        sanitized.gsub!(/(?<![A-Za-z0-9])[A-Za-z0-9+\/_-]{24,}={0,2}(?![A-Za-z0-9])/) do |value|
+          preserve_git_object_ids && GIT_OBJECT_ID_PATTERN.match?(value) ? value : "[REDACTED]"
+        end
         sanitized.lines.first(MAX_OUTPUT_LINES).join.byteslice(0, MAX_OUTPUT_BYTES).to_s.scrub
       end
     end

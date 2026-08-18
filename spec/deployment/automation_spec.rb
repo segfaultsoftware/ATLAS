@@ -76,6 +76,26 @@ RSpec.describe Atlas::DeploymentAutomation::DeploymentAutomationCommandRunner do
       ])
     end.to raise_error(Atlas::Deployment::CommandError) { |error| expect(error.message).not_to include(possible_key) }
   end
+
+  it "preserves Git object IDs returned by ref commands" do
+    revision = "a" * 40
+    runner = described_class.new
+    successful_status = instance_double(Process::Status, success?: true)
+    allow(runner).to receive(:execute).with([ "git", "ls-remote" ], environment: {}, chdir: nil).and_return([ revision, "", successful_status ])
+
+    result = runner.capture([ "git", "ls-remote" ])
+
+    expect(result).to eq(revision)
+  end
+
+  it "redacts unconfigured hexadecimal secrets from failed command output" do
+    possible_secret = "b" * 40
+    runner = described_class.new
+
+    expect do
+      runner.run([ RbConfig.ruby, "-e", "STDERR.write('#{possible_secret}'); exit 3" ])
+    end.to raise_error(Atlas::Deployment::CommandError) { |error| expect(error.message).not_to include(possible_secret) }
+  end
 end
 
 RSpec.describe Atlas::DeploymentAutomation do

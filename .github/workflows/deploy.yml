@@ -42,9 +42,7 @@ jobs:
           GITHUB_REF_DELETED: ${{ github.event.deleted }}
           ATLAS_PRODUCTION_ROOT: /srv/apps/ATLAS
           ATLAS_STAGING_ROOT: /srv/apps/ATLAS-staging
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: http.https://github.com/.extraheader
-          GIT_CONFIG_VALUE_0: "AUTHORIZATION: bearer ${{ github.token }}"
+          ATLAS_DEPLOYMENT_TOKEN: ${{ github.token }}
         run: bin/deployment-automation
 
   deploy_staging_from_main:
@@ -86,9 +84,7 @@ jobs:
           GITHUB_REF_DELETED: ${{ github.event.deleted }}
           ATLAS_PRODUCTION_ROOT: /srv/apps/ATLAS
           ATLAS_STAGING_ROOT: /srv/apps/ATLAS-staging
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: http.https://github.com/.extraheader
-          GIT_CONFIG_VALUE_0: "AUTHORIZATION: bearer ${{ steps.staging_tag_token.outputs.token }}"
+          ATLAS_DEPLOYMENT_TOKEN: ${{ steps.staging_tag_token.outputs.token }}
         run: bin/deployment-automation
 
   deploy_staging_from_tag:
@@ -121,7 +117,5 @@ jobs:
           GITHUB_REF_DELETED: ${{ github.event.deleted }}
           ATLAS_PRODUCTION_ROOT: /srv/apps/ATLAS
           ATLAS_STAGING_ROOT: /srv/apps/ATLAS-staging
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: http.https://github.com/.extraheader
-          GIT_CONFIG_VALUE_0: "AUTHORIZATION: bearer ${{ github.token }}"
+          ATLAS_DEPLOYMENT_TOKEN: ${{ github.token }}
         run: bin/deployment-automation

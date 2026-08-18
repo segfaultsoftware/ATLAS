@@ -32,12 +32,13 @@ end
 
 RSpec.describe Atlas::DeploymentAutomation::DeploymentAutomationCommandRunner do
   it "limits Git authentication to remote Git child commands" do
-    runner = described_class.new(git_auth: "AUTHORIZATION: bearer test-token")
+    runner = described_class.new(git_auth: "AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46dGVzdC10b2tlbg==")
 
     expect(runner.send(:command_environment, %w[git push], {})).to include(
       "GIT_CONFIG_COUNT" => "1",
       "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
-      "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: bearer test-token"
+      "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46dGVzdC10b2tlbg==",
+      "GIT_TERMINAL_PROMPT" => "0"
     )
     expect(runner.send(:command_environment, %w[bin/deploy update], {})).to eq({})
     expect(runner.send(:command_environment, %w[git status], {})).to eq({})
@@ -45,23 +46,33 @@ RSpec.describe Atlas::DeploymentAutomation::DeploymentAutomationCommandRunner do
   end
 
   it "does not allow repository hooks to run in deployment checkouts" do
-    runner = described_class.new(git_auth: "AUTHORIZATION: bearer test-token")
+    runner = described_class.new(git_auth: "AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46dGVzdC10b2tlbg==")
 
     expect(runner.send(:command_environment, [ "git", "-c", "core.hooksPath=/dev/null", "fetch", "origin", "revision" ], {})).to include(
-      "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: bearer test-token"
+      "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46dGVzdC10b2tlbg==",
+      "GIT_TERMINAL_PROMPT" => "0"
     )
+  end
+
+  it "keeps prompt suppression and Basic authorization out of local commands" do
+    runner = described_class.new(git_auth: "AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46dGVzdC10b2tlbg==")
+
+    expect(runner.send(:command_environment, %w[git ls-remote origin], {})).to include("GIT_TERMINAL_PROMPT" => "0")
+    expect(runner.send(:command_environment, %w[git status], {})).to eq({})
+    expect(runner.send(:command_environment, %w[bin/deploy update], {})).to eq({})
   end
 
   it "bounds and redacts failed command output" do
     runner = described_class.new(secret_values: [ "raw-secret" ])
+    basic_credential = "eC1hY2Nlc3MtdG9rZW46YmFzaWMtc2VjcmV0"
 
     expect do
       runner.run([
         RbConfig.ruby, "-e",
-        'STDERR.write("Authorization: Bearer bearer-secret RAILS_MASTER_KEY=key-secret password=\\"super secret\\" raw-secret #{"x" * 100_000}"); exit 3'
+        "STDERR.write('Authorization: Bearer bearer-secret Authorization: basic #{basic_credential} RAILS_MASTER_KEY=key-secret password=\\\"super secret\\\" raw-secret #{"x" * 100_000}'); exit 3"
       ])
     end.to raise_error(Atlas::Deployment::CommandError) do |error|
-      expect(error.message).not_to include("bearer-secret", "key-secret", "super secret", "raw-secret")
+      expect(error.message).not_to include("bearer-secret", basic_credential, "key-secret", "super secret", "raw-secret")
       expect(error.message.bytesize).to be < 40_000
     end
   end

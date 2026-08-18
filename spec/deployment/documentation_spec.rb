@@ -55,6 +55,21 @@ RSpec.describe "the deployment documentation contract" do
     )
   end
 
+  it "documents the isolated first-time staging bootstrap" do
+    expect(documentation).to include(
+      "## Initial staging bootstrap",
+      "/srv/apps/ATLAS-staging",
+      "bin/deploy fresh",
+      "RAILS_MASTER_KEY_FILE=/srv/platform/secrets/atlas-staging/rails_master_key",
+      "ATLAS_HOST=atlas-staging.home.arpa",
+      "COMPOSE_PROJECT_NAME=atlas-staging",
+      "atlas-staging-atlas-1:80"
+    )
+    expect(documentation).to match(/HTTPS `origin`.*SSH `git@github\.com:` remote/im)
+    expect(documentation).to match(/bare `atlas` network alias.*staging target/im)
+    expect(documentation).to match(/private DNS record.*`atlas-staging\.home\.arpa`/im)
+  end
+
   it "documents authorized operator staging-tag advancement and recovery" do
     expect(documentation).to include("`bin/bump_staging_tag`", "HEAD:refs/tags/staging", "--force-with-lease")
     expect(documentation).to match(/authorized operators?/i)

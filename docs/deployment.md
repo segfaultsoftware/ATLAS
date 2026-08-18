@@ -292,12 +292,13 @@ sudo test -s /srv/platform/secrets/atlas/rails_master_key
 ### Manual operator action: configure the repository checkout
 
 Create the ignored `.env` from the example and confirm that it contains only
-the external secret-file setting:
+the external secret-file setting and, when the checkout serves a non-default
+hostname, an `ATLAS_HOST` setting:
 
 ```sh
 cp .env.example .env
-grep -n '^RAILS_MASTER_KEY_FILE=' .env
-test "$(grep -vE '^(#|RAILS_MASTER_KEY_FILE=|[[:space:]]*$)' .env | wc -l)" -eq 0
+grep -nE '^(RAILS_MASTER_KEY_FILE|ATLAS_HOST)=' .env
+test "$(grep -vE '^(#|RAILS_MASTER_KEY_FILE=|ATLAS_HOST=|[[:space:]]*$)' .env | wc -l)" -eq 0
 ```
 
 The expected value is:
@@ -352,6 +353,148 @@ docker compose port atlas 80
 
 The final command should produce no published host port. An empty result is
 expected because Caddy reaches the service over the external `web` network.
+
+## Initial staging bootstrap
+
+Staging is a second Compose deployment on the same host, not a production
+checkout with a different Git ref. It must have its own checkout, Compose
+project name, persistent storage, environment file, and Caddy route. Do not
+point staging at `/srv/apps/ATLAS`, production storage, or the production
+container.
+
+The GitHub workflow assumes this bootstrap is complete. It uses
+`bin/deploy update`, which reads a marker from the existing `atlas` container
+before starting a replacement. For an empty or stopped staging deployment, use
+`bin/deploy fresh` once as described below; an ordinary `update` cannot create
+the first running container.
+
+### Manual operator action: create the isolated staging checkout
+
+Run these commands as, or on behalf of, the account that owns the
+`atlas-deployment` self-hosted runner and has access to Docker. Substitute the
+approved Git URL and runner account. Use an HTTPS `origin`: the automation
+supplies a short-lived HTTP authorization header for its Git fetches, which
+does not apply to an SSH `git@github.com:` remote.
+
+```sh
+sudo install -d -o <DEPLOYMENT_RUNNER_USER> -g <DEPLOYMENT_RUNNER_GROUP> -m 0755 /srv/apps/ATLAS-staging
+sudo -u <DEPLOYMENT_RUNNER_USER> git clone https://github.com/segfaultsoftware/ATLAS.git /srv/apps/ATLAS-staging
+cd /srv/apps/ATLAS-staging
+git remote get-url origin
+git remote set-url origin https://github.com/segfaultsoftware/ATLAS.git
+git fetch --tags origin
+git checkout --detach refs/tags/staging
+sudo install -d -o 1000 -g 1000 -m 0755 /srv/apps/ATLAS-staging/storage
+```
+
+Before the first checkout, confirm that `refs/tags/staging` exists and names
+the intended revision:
+
+```sh
+git ls-remote origin refs/tags/staging refs/tags/staging^{}
+```
+
+An absent staging tag is intentionally ignored by the deployment workflow.
+Do not create or move it solely to work around an unprepared host; use the
+approved staging-tag procedure after the bootstrap is complete.
+
+### Manual operator action: configure the staging master key and Compose environment
+
+Use a staging-specific secret-file path. Its contents must be the approved
+Rails master key that decrypts the revision being deployed; it may have the
+same value as production when both environments intentionally use the same
+encrypted credentials. Keep it in a separate root-owned file so each checkout
+has an explicit, auditable secret-file path.
+
+```sh
+sudo install -d -o root -g root -m 0700 /srv/platform/secrets/atlas-staging
+sudo install -o root -g root -m 0600 /dev/null /srv/platform/secrets/atlas-staging/rails_master_key
+sudo stat -c '%U:%G %a %n' /srv/platform/secrets/atlas-staging/rails_master_key
+sudo test -s /srv/platform/secrets/atlas-staging/rails_master_key
+```
+
+Transfer the approved key using the site's secure secret-transfer procedure;
+do not paste it into a command, commit it, or place it in `.env`. Then create
+`/srv/apps/ATLAS-staging/.env` with these non-secret values:
+
+```dotenv
+RAILS_MASTER_KEY_FILE=/srv/platform/secrets/atlas-staging/rails_master_key
+ATLAS_HOST=atlas-staging.home.arpa
+COMPOSE_PROJECT_NAME=atlas-staging
+```
+
+`COMPOSE_PROJECT_NAME=atlas-staging` makes the Compose resource names stable
+and distinct from production. Preserve this ignored `.env` during deployments;
+the workflow checks out application revisions but does not create host
+configuration.
+
+### Manual operator action: connect Caddy and Docker networking
+
+Both environments attach to the external Docker network named `web`. Confirm
+that the existing Caddy deployment is also attached to that network; do not
+publish a host port for either ATLAS container and do not create another
+similarly named network.
+
+```sh
+docker network inspect web
+cd /srv/apps/ATLAS-staging
+docker compose config --quiet
+```
+
+Do not use the bare `atlas` network alias as Caddy's staging target when
+production is also attached to `web`: both Compose projects provide that
+service alias. With the explicit project name above, the initial staging
+container is named `atlas-staging-atlas-1`, which is a unique Docker DNS name
+on `web`. Confirm the actual container name after the first deployment with
+`docker compose ps` before updating Caddy.
+
+Add a separate conceptual route to the site's existing Caddy configuration;
+keep its formatting, certificate, and reload procedures:
+
+```caddyfile
+atlas-staging.home.arpa {
+    reverse_proxy atlas-staging-atlas-1:80
+}
+```
+
+Do not replace the production `atlas.home.arpa` route or its upstream. After
+the Caddy change, validate and reload it using the homelab's approved process,
+then confirm Caddy is still connected to `web`.
+
+### Manual operator action: perform and verify the first staging deployment
+
+From the staging checkout, perform the one-time initial deployment:
+
+```sh
+cd /srv/apps/ATLAS-staging
+docker compose config --quiet
+bin/deploy fresh
+bin/verify-deployment
+docker compose ps
+docker compose port atlas 80
+```
+
+The last command should show no published host port. Inspect bounded service
+state and logs if `fresh` fails, without exposing secret contents:
+
+```sh
+docker compose ps --format json --all atlas
+docker compose logs --no-color --tail=200 atlas
+```
+
+Create or update the private DNS record for `atlas-staging.home.arpa` to the
+homeserver's LAN address and verify the proxy path from a LAN client:
+
+```sh
+dig +short atlas-staging.home.arpa @<LAN_DNS_ADDRESS>
+curl --fail --silent --show-error --location https://atlas-staging.home.arpa/up
+curl --fail --silent --show-error --location https://atlas-staging.home.arpa/status
+```
+
+After this succeeds, a failed main-driven staging workflow for the same tag
+revision can be rerun from GitHub. It will recognize that `staging` already
+names that revision and run the normal `bin/deploy update` path without moving
+the tag again.
 
 ## Routine update, restart, and seed operations
 

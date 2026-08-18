@@ -24,8 +24,8 @@ RSpec.describe "the deployment documentation contract" do
       "`atlas-staging.home.arpa`"
     )
     expect(documentation).to include(
-      "A deleted `prod` or `main` ref may still enter the job",
-      "the automation returns `:ignored` before it mutates the deployment host"
+      "A deleted `prod`, `main`, or `staging` ref may still enter the",
+      "the automation returns `:ignored` before it mutates the deployment"
     )
   end
 
@@ -53,6 +53,26 @@ RSpec.describe "the deployment documentation contract" do
       "gh run view <workflow-run-id> --json conclusion,headSha,url",
       "gh run rerun <workflow-run-id> --failed"
     )
+  end
+
+  it "documents authorized operator staging-tag advancement and recovery" do
+    expect(documentation).to include("`bin/bump_staging_tag`", "HEAD:refs/tags/staging", "--force-with-lease")
+    expect(documentation).to match(/authorized operators?/i)
+    expect(documentation).to match(/committed `HEAD`/i)
+    expect(documentation).to match(/direct and peeled `refs\/tags\/staging`/i)
+    expect(documentation).to match(/inspect.*retry|retry.*inspect/i)
+    expect(documentation).to match(/tag-event deployment.*main-driven tag advancement|main-driven tag advancement.*tag-event deployment/i)
+    expect(documentation).to match(/stale.*missing.*annotated.*racing refs/im)
+    expect(documentation).to match(/racing ref.*refused.*fails the workflow/im)
+    expect(documentation).to match(/deleted\s+event.*ignored before.*remote ref query/im)
+  end
+
+  it "documents the administrator-owned external staging tag ruleset" do
+    expect(documentation).to match(/external `staging` GitHub tag ruleset/i)
+    expect(documentation).to match(/creation.*updates.*deletions/im)
+    expect(documentation).to match(/approved users\/teams|approved users or teams/i)
+    expect(documentation).to match(/GitHub Actions app/i)
+    expect(documentation).to match(/administrator-owned/i)
   end
 
   it "makes revert-commit plus prod-tag-forward recovery authoritative" do

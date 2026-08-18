@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+
+abort "usage: bin/bump_staging_tag" unless ARGV.empty?
+
+git_auth = ENV.delete("GIT_CONFIG_VALUE_0")
+ENV.delete("GIT_CONFIG_COUNT")
+ENV.delete("GIT_CONFIG_KEY_0")
+
+require_relative "../lib/atlas/staging_tag_bumper"
+
+Atlas::StagingTagBumper.new(git_auth:).run

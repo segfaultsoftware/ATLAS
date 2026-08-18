@@ -21,6 +21,7 @@ module Atlas
       MAX_OUTPUT_BYTES = 32_768
       MAX_OUTPUT_LINES = 300
       REMOTE_GIT_SUBCOMMANDS = %w[fetch ls-remote push].freeze
+      GIT_OBJECT_ID_PATTERN = /\A[0-9a-f]{40,64}\z/i
 
       def initialize(secret_values: [], git_auth: nil)
         @secret_values = Array(secret_values).filter_map do |value|
@@ -42,7 +43,7 @@ module Atlas
 
       def capture(command, environment: {}, chdir: nil)
         stdout, stderr, status = execute(command, environment:, chdir:)
-        return sanitize(stdout) if status.success?
+        return sanitize(stdout, preserve_git_object_ids: ref_reading_command?(command)) if status.success?
 
         raise CommandError, failure_message(command, status, stderr)
       end
@@ -116,6 +117,12 @@ module Atlas
         REMOTE_GIT_SUBCOMMANDS.include?(git_subcommand(command))
       end
 
+      def ref_reading_command?(command)
+        return false unless command.first == "git"
+
+        %w[ls-remote rev-parse].include?(git_subcommand(command))
+      end
+
       def git_subcommand(command)
         index = 1
         while command[index] == "-c"
@@ -138,13 +145,15 @@ module Atlas
         value.to_s.lines.first(MAX_OUTPUT_LINES).join.byteslice(0, MAX_OUTPUT_BYTES).to_s.scrub
       end
 
-      def sanitize(value)
+      def sanitize(value, preserve_git_object_ids: false)
         sanitized = value.to_s.dup
         secret_values.each { |secret| sanitized.gsub!(secret, "[REDACTED]") }
         sanitized.gsub!(/(Bearer\s+)([^\s]+)/i, "\\1[REDACTED]")
         sanitized.gsub!(/((?:rails[_ -]?master[_ -]?key|password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)\s*[:=]\s*)("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/i, "\\1[REDACTED]")
         sanitized.gsub!(/((?:authorization|proxy-authorization)\s*[:=]\s*)(?!Bearer\b)("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/i, "\\1[REDACTED]")
-        sanitized.gsub!(/(?<![A-Za-z0-9])[A-Za-z0-9+\/_-]{24,}={0,2}(?![A-Za-z0-9])/, "[REDACTED]")
+        sanitized.gsub!(/(?<![A-Za-z0-9])[A-Za-z0-9+\/_-]{24,}={0,2}(?![A-Za-z0-9])/) do |value|
+          preserve_git_object_ids && GIT_OBJECT_ID_PATTERN.match?(value) ? value : "[REDACTED]"
+        end
         sanitized.lines.first(MAX_OUTPUT_LINES).join.byteslice(0, MAX_OUTPUT_BYTES).to_s.scrub
       end
     end
@@ -181,6 +190,8 @@ module Atlas
         deploy_production(current_event)
       when MAIN_REF
         advance_and_deploy_staging(current_event)
+      when STAGING_REF
+        deploy_staging_tag(current_event)
       else
         :ignored
       end
@@ -200,7 +211,7 @@ module Atlas
       after = value_from_event("after", "GITHUB_SHA")
       deleted = boolean_value(value_from_event("deleted", "GITHUB_REF_DELETED"))
 
-      return { name: event_name, ref:, before:, after:, deleted: } unless event_name == "push" && [ PRODUCTION_REF, MAIN_REF ].include?(ref)
+      return { name: event_name, ref:, before:, after:, deleted: } unless event_name == "push" && [ PRODUCTION_REF, MAIN_REF, STAGING_REF ].include?(ref)
 
       raise ArgumentError, "deployment event name is required" if event_name.to_s.empty?
       raise ArgumentError, "deployment event revision is invalid" unless valid_sha?(after)
@@ -246,12 +257,25 @@ module Atlas
         raise CommandError, "staging ref did not advance to #{current_event.fetch(:after)}" unless remote_revision(STAGING_REF) == current_event.fetch(:after)
       end
 
+      deploy_staging_revision(current_event.fetch(:after))
+      :staging
+    end
+
+    def deploy_staging_tag(current_event)
+      return :ignored unless remote_revision(STAGING_REF) == current_event.fetch(:after)
+
+      deploy_staging_revision(current_event.fetch(:after))
+      :staging
+    end
+
+    def deploy_staging_revision(revision)
       deploy_revision(
         root: staging_root,
-        revision: current_event.fetch(:after),
-        host: staging_host
+        revision:,
+        host: staging_host,
+        before_checkout: -> { ensure_current_staging(revision) },
+        before_deploy: -> { ensure_current_staging(revision) }
       )
-      :staging
     end
 
     def remote_revision(ref)
@@ -281,7 +305,7 @@ module Atlas
       )
     end
 
-    def deploy_revision(root:, revision:, host:, before_deploy: nil)
+    def deploy_revision(root:, revision:, host:, before_checkout: nil, before_deploy: nil)
       status = capture(
         git_command("status", "--porcelain=v1", "--ignored", "--untracked-files=normal", "--", ".", ":(exclude)storage"),
         chdir: root
@@ -303,6 +327,7 @@ module Atlas
       end
 
       execute(git_command("fetch", "--no-tags", remote, revision), chdir: root)
+      before_checkout&.call
       execute(git_command("checkout", "--detach", "--force", revision), chdir: root)
       before_deploy&.call
       environment = { "ATLAS_HOST" => host }
@@ -342,6 +367,12 @@ module Atlas
       return if remote_revision(PRODUCTION_REF) == revision
 
       raise CommandError, "prod ref changed before deployment; refusing revision #{revision}"
+    end
+
+    def ensure_current_staging(revision)
+      return if remote_revision(STAGING_REF) == revision
+
+      raise CommandError, "staging ref changed before deployment; refusing revision #{revision}"
     end
 
     def deployment_secret_values

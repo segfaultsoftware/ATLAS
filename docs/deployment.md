@@ -26,16 +26,22 @@ The deployment workflow is deliberately limited to trusted push events:
   tag to `/srv/apps/ATLAS`, serving `atlas.home.arpa`.
 - A push for `refs/heads/main` manages staging at
   `/srv/apps/ATLAS-staging`, serving `atlas-staging.home.arpa`.
+- A trusted push for `refs/tags/staging` deploys the commit named by that tag
+  to the same staging host. It does not require a push to `main`.
 - Pull requests, non-push events, and other branches or tags do not trigger
-  this workflow. A deleted `prod` or `main` ref may still enter the job, but
-  the automation returns `:ignored` before it mutates the deployment host.
+  this workflow. A deleted `prod`, `main`, or `staging` ref may still enter the
+  job, but the automation returns `:ignored` before it mutates the deployment
+  host.
 
 The workflow runs on the dedicated `atlas-deployment` self-hosted runner group
 and label. It uses one non-canceling concurrency group for the repository, so a
 production or staging host mutation finishes before another one begins. The
-workflow grants `contents: write` because the staging path may update a tag;
-the existing pull-request and hosted `main` CI remains separate from this
-privileged runner.
+workflow has read-only repository contents by default. Only the main-driven
+staging job enters the protected `staging-tag-automation` environment and mints
+a short-lived GitHub App token to advance the tag. The tag-event job has no
+write-capable token and skips pushes made by that App, preventing the
+main-driven tag update from starting a duplicate deployment. The existing
+pull-request and hosted `main` CI remains separate from this privileged runner.
 
 The workflow checks out source with credentials removed from the checkout,
 selects the repository Ruby version, and passes Git authentication only through
@@ -71,8 +77,8 @@ The force-with-lease operation is a compare-and-swap: a concurrent tag change
 fails visibly and leaves the staging tag unchanged. Operators can inspect the
 failure, resolve the intentional pin or stale event, and retry the workflow.
 Staging tag advancement and staging deployment occur in the same workflow run
-because a `GITHUB_TOKEN`-created ref update does not recursively trigger an
-ordinary push workflow.
+because the tag update is made by the staging GitHub App and the tag-event job
+skips that App's actor, avoiding a duplicate deployment.
 
 Staging tag advancement happens before deployment. If the tag update succeeds
 but `bin/deploy update` fails, `refs/tags/staging` may already point at the new
@@ -100,6 +106,65 @@ gh run rerun <workflow-run-id> --failed
 Compare the tag and checkout output with `GITHUB_SHA` before rerunning the
 failed workflow. The rerun must target that same workflow run; it must not
 create another tag movement when staging already names the revision.
+
+## Staging tag authorization and operator operations
+
+The external `staging` GitHub tag ruleset is the authorization boundary for
+moving the deployment tag. It is administrator-owned configuration, not
+repository source: an administrator must target `refs/tags/staging`, restrict
+tag creation, updates, and deletions (including non-fast-forward updates), and
+enable the ruleset. Its bypass actors must be limited to approved users or teams
+and the GitHub Actions app used by the main-driven staging job. Do not
+invent, document, or substitute individual user or team names in this runbook.
+Changing the ruleset, its bypass actors, or its enforcement remains an
+administrator action.
+
+An authorized operator can deploy a committed feature-branch revision without
+pushing it to `main` by running the `bin/bump_staging_tag` repository command
+from that branch:
+
+```sh
+bin/bump_staging_tag
+```
+
+The helper accepts no arguments, resolves committed `HEAD`, and deliberately
+does not reject unrelated dirty working-tree files. It reads the remote direct
+and peeled `refs/tags/staging` values, then uses an explicit
+`--force-with-lease` push with `HEAD:refs/tags/staging`. After the push it
+verifies that the remote direct or peeled target is the expected committed
+`HEAD`; a successful update therefore triggers staging deployment for that
+exact commit.
+
+If the helper reports a rejected lease or a verification mismatch, stop before
+retrying. Inspect the current tag target and the workflow evidence, determine
+whether another authorized operator intentionally moved the tag, and retry
+only after resolving that intent:
+
+```sh
+git ls-remote origin refs/tags/staging refs/tags/staging^{}
+gh run list --workflow deploy.yml --limit 10
+```
+
+The diagnostic identifies the expected and observed revisions when verification
+fails. Preserve only bounded, redacted output in operator records; do not copy
+credentials, app tokens, or private keys into issue comments or command lines.
+
+Tag-event deployment and main-driven tag advancement are distinct paths. A
+human staging-tag event deploys the tag target but never advances the tag. A
+`main` event may advance `staging` by compare-and-swap before it deploys, and
+the resulting GitHub App tag update is skipped as a duplicate event. A deleted
+event is ignored before any remote ref query. For non-deleted events, stale,
+missing, annotated, and racing refs are rechecked against the remote target
+before host-checkout mutation. A stale or missing event is ignored; an
+annotated tag must resolve to the expected peeled commit. A racing ref
+discovered during or after checkout is refused and fails the workflow, so the
+operator must inspect the remote target and retry only after resolving the race.
+
+After administrator configuration, inspect the active tag ruleset and its rule
+insights in GitHub before relying on a bypass. Confirm that it targets only
+`staging`, is enforced, protects creation, updates, and deletions, and exposes
+only the approved user/team and GitHub Actions app actor categories. This is a
+read-only verification step; this runbook does not create or modify rulesets.
 
 Every deployment synchronizes a clean host checkout, preserves the ignored
 `.env` and persistent `storage`, checks out the requested revision detached,

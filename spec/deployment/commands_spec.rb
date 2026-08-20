@@ -485,15 +485,17 @@ RSpec.describe Atlas::Deployment::Verifier do
         "atlas\n"
       when %w[docker compose config --format json]
         { "services" => { "atlas" => { "expose" => [ 80 ] } } }.to_json
-      when %w[docker compose images -q atlas]
-        "sha256:atlas\n"
+      when %w[docker compose ps -q atlas]
+        "atlas-container\n"
+      when [ "docker", "inspect", "--format", "{{.Image}}", "atlas-container" ]
+        "sha256:atlas-runtime\n"
       when %w[docker compose config]
         "services:\n"
       when %w[git ls-files -z]
         "Dockerfile\0bin/docker-entrypoint\0compose.yaml\0.env.example\0"
       when [ "docker", "compose", "logs", "--no-color", "--tail", "1000", "atlas" ]
         ""
-      when [ "docker", "history", "--no-trunc", "sha256:atlas" ]
+      when [ "docker", "history", "--no-trunc", "sha256:atlas-runtime" ]
         "CMD [\"./bin/thrust\"]\n"
       when [ "docker", "compose", "exec", "--no-TTY", "atlas", "sh", "-c", "cat /run/secrets/rails_master_key" ]
         "test-secret\n"
@@ -516,6 +518,135 @@ RSpec.describe Atlas::Deployment::Verifier do
     expect(runner).to have_received(:capture).with(
       [ "curl", "--fail", "--silent", "--show-error", "--location", "--header", "Host: atlas.home.arpa", "https://atlas.home.arpa/status" ]
     )
+    expect(runner).to have_received(:capture).with(%w[docker compose ps -q atlas])
+    expect(runner).to have_received(:capture).with(
+      [ "docker", "inspect", "--format", "{{.Image}}", "atlas-container" ]
+    )
+    expect(runner).to have_received(:capture).with(
+      [ "docker", "history", "--no-trunc", "sha256:atlas-runtime" ]
+    )
+    expect(runner).to have_received(:capture).with(
+      [ "docker", "compose", "logs", "--no-color", "--tail", "1000", "atlas" ]
+    )
+    expect(runner).not_to have_received(:capture).with(%w[docker compose images -q atlas])
+  end
+
+  it "rejects a missing running atlas container without skipping secret checks" do
+    allow(runner).to receive(:capture).with(%w[docker compose ps -q atlas]).and_return("")
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError, /exactly one running atlas container.*found 0/i)
+    expect(runner).not_to have_received(:capture).with(array_including("inspect"))
+    expect(runner).not_to have_received(:capture).with(array_including("history"))
+  end
+
+  it "rejects ambiguous running atlas containers with a bounded diagnostic" do
+    first_container = "a" * 64
+    second_container = "b" * 64
+    allow(runner).to receive(:capture).with(%w[docker compose ps -q atlas]).and_return(
+      "#{first_container}\n#{second_container}\n"
+    )
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to match(/exactly one running atlas container.*found 2/i)
+      expect(error.message).not_to include(first_container)
+      expect(error.message).not_to include(second_container)
+      expect(error.message.bytesize).to be < 256
+    end
+    expect(runner).not_to have_received(:capture).with(array_including("inspect"))
+  end
+
+  it "rejects an empty immutable image identity" do
+    allow(runner).to receive(:capture).with(
+      [ "docker", "inspect", "--format", "{{.Image}}", "atlas-container" ]
+    ).and_return("\n")
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError, /immutable image identity.*empty/i)
+    expect(runner).not_to have_received(:capture).with(array_including("history"))
+  end
+
+  it "reports a running-container inspection failure without exposing container metadata" do
+    container_id = "sensitive-container-identity"
+    allow(runner).to receive(:capture).with(%w[docker compose ps -q atlas]).and_return("#{container_id}\n")
+    allow(runner).to receive(:capture).with(
+      [ "docker", "inspect", "--format", "{{.Image}}", container_id ]
+    ).and_raise(
+      Atlas::Deployment::CommandError,
+      "command failed (1): docker inspect --format {{.Image}} #{container_id} — authorization=credential-value"
+    )
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to match(/could not inspect.*running atlas container image/i)
+      expect(error.message).not_to include(container_id)
+      expect(error.message).not_to include("credential-value")
+      expect(error.message.bytesize).to be < 256
+    end
+  end
+
+  it "rejects the configured secret in runtime image history without exposing it" do
+    allow(runner).to receive(:capture).with(
+      [ "docker", "history", "--no-trunc", "sha256:atlas-runtime" ]
+    ).and_return("RUN configured-secret-value\n")
+    verifier = described_class.new(
+      runner:,
+      repository_root:,
+      env: { "RAILS_MASTER_KEY" => "configured-secret-value", "ATLAS_HOST" => "atlas.home.arpa" }
+    )
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to include("Docker image history contains sensitive material")
+      expect(error.message).not_to include("configured-secret-value")
+    end
+  end
+
+  it "rejects a recognized credential pattern in runtime image history without exposing it" do
+    allow(runner).to receive(:capture).with(
+      [ "docker", "history", "--no-trunc", "sha256:atlas-runtime" ]
+    ).and_return("Authorization: Bearer history-credential-value\n")
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to include("Docker image history contains sensitive material")
+      expect(error.message).not_to include("history-credential-value")
+    end
+  end
+
+  it "reports a runtime image-history failure without exposing image or credential metadata" do
+    image_id = "sha256:sensitive-runtime-image"
+    allow(runner).to receive(:capture).with(
+      [ "docker", "inspect", "--format", "{{.Image}}", "atlas-container" ]
+    ).and_return("#{image_id}\n")
+    allow(runner).to receive(:capture).with(
+      [ "docker", "history", "--no-trunc", image_id ]
+    ).and_raise(
+      Atlas::Deployment::CommandError,
+      "command failed (1): docker history --no-trunc #{image_id} — authorization=credential-value"
+    )
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to match(/could not inspect.*runtime image history/i)
+      expect(error.message).not_to include(image_id)
+      expect(error.message).not_to include("credential-value")
+      expect(error.message.bytesize).to be < 256
+    end
+    expect(runner).not_to have_received(:capture).with(
+      [ "docker", "compose", "logs", "--no-color", "--tail", "1000", "atlas" ]
+    )
+  end
+
+  it "scans logs after resolving runtime image history" do
+    allow(runner).to receive(:capture).with(
+      [ "docker", "compose", "logs", "--no-color", "--tail", "1000", "atlas" ]
+    ).and_return("test-secret\n")
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to include("container logs contain the Rails master key")
+      expect(error.message).not_to include("test-secret")
+    end
+    expect(runner).to have_received(:capture).with(
+      [ "docker", "history", "--no-trunc", "sha256:atlas-runtime" ]
+    ).ordered
+    expect(runner).to have_received(:capture).with(
+      [ "docker", "compose", "logs", "--no-color", "--tail", "1000", "atlas" ]
+    ).ordered
   end
 
   it "checks a supplied secret value without matching safe source examples" do

@@ -319,14 +319,56 @@ module Atlas
           raise CommandError, "tracked file contains the Rails master key: #{relative_path}"
         end
 
-        image = runner.capture(compose("images", "-q", SERVICE)).strip
-        return if image.empty?
-
-        history = runner.capture([ "docker", "history", "--no-trunc", image ])
-        raise CommandError, "Docker image history contains the Rails master key" if history.include?(secret_value)
+        image = runtime_image_id
+        history = capture_runtime_image_history(image)
+        if history.include?(secret_value)
+          raise CommandError, "Docker image history contains sensitive material (Rails master key)"
+        end
+        if credential_pattern?(history)
+          raise CommandError, "Docker image history contains sensitive material matching a credential pattern"
+        end
 
         logs = runner.capture(compose("logs", "--no-color", "--tail", "1000", SERVICE))
         raise CommandError, "container logs contain the Rails master key" if logs.include?(secret_value)
+      end
+
+      def runtime_image_id
+        container_ids = capture_running_container_ids
+        unless container_ids.one?
+          raise CommandError, "expected exactly one running #{SERVICE} container; found #{container_ids.length}"
+        end
+
+        image_ids = capture_container_image_ids(container_ids.first)
+        raise CommandError, "running #{SERVICE} container immutable image identity is empty" if image_ids.empty?
+        unless image_ids.one?
+          raise CommandError, "running #{SERVICE} container immutable image identity is ambiguous; found #{image_ids.length} values"
+        end
+
+        image_ids.first
+      end
+
+      def capture_running_container_ids
+        runner.capture(compose("ps", "-q", SERVICE)).lines.map(&:strip).reject(&:empty?)
+      rescue CommandError
+        raise CommandError, "could not resolve the running #{SERVICE} container with docker compose ps"
+      end
+
+      def capture_container_image_ids(container_id)
+        runner.capture([ "docker", "inspect", "--format", "{{.Image}}", container_id ]).lines.map(&:strip).reject(&:empty?)
+      rescue CommandError
+        raise CommandError, "could not inspect the running #{SERVICE} container image with docker inspect"
+      end
+
+      def capture_runtime_image_history(image_id)
+        runner.capture([ "docker", "history", "--no-trunc", image_id ])
+      rescue CommandError
+        raise CommandError, "could not inspect the running #{SERVICE} runtime image history with docker history"
+      end
+
+      def credential_pattern?(value)
+        value.match?(ReadinessWaiter::PEM_VALUE) ||
+          value.match?(ReadinessWaiter::BEARER_VALUE) ||
+          value.match?(ReadinessWaiter::SENSITIVE_ASSIGNMENT)
       end
 
       def verify_dockerignore

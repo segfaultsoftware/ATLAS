@@ -198,3 +198,21 @@ RSpec.describe Atlas::TagBumper do
     expect(current_head).to eq(changed_revision)
   end
 end
+
+RSpec.describe "bin/bump_staging_tag" do
+  let(:entrypoint) { File.read(File.expand_path("../../bin/bump_staging_tag", __dir__)) }
+
+  it "rejects arguments, clears authentication variables, and delegates to the staging tag" do
+    expect(entrypoint).to include('abort "usage: bin/bump_staging_tag" unless ARGV.empty?')
+    expect(entrypoint).to include('ENV.delete("GIT_CONFIG_VALUE_0")')
+    expect(entrypoint).to include('ENV.delete("GIT_CONFIG_COUNT")')
+    expect(entrypoint).to include('ENV.delete("GIT_CONFIG_KEY_0")')
+    expect(entrypoint).to include(
+      "Atlas::TagBumper.new(",
+      "tag_ref: Atlas::DeploymentAutomation::STAGING_REF",
+      'target_label: "staging"',
+      "git_auth:"
+    )
+    expect(entrypoint).not_to include("StagingTagBumper", "refs/tags/prod")
+  end
+end

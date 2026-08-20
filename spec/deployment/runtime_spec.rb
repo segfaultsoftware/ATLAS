@@ -15,6 +15,18 @@ RSpec.describe "the production runtime contract" do
     expect(entrypoint).to include("run_as_app_user")
   end
 
+  it "prepares the database before starting the default Rails server" do
+    server_guard = 'if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then'
+    preparation = "./bin/rails db:prepare"
+    server_start = 'run_as_app_user "$@"'
+
+    expect(dockerfile).to include('ENTRYPOINT ["/rails/bin/docker-entrypoint"]')
+    expect(dockerfile).to include('CMD ["./bin/thrust", "./bin/rails", "server"]')
+    expect(entrypoint).to include(server_guard)
+    expect(entrypoint).to include(preparation)
+    expect(entrypoint.index(preparation)).to be < entrypoint.index(server_start)
+  end
+
   it "bridges a configured secret file into Rails" do
     expect(entrypoint).to include('secret_path="${RAILS_MASTER_KEY_FILE:-/run/secrets/rails_master_key}"')
 

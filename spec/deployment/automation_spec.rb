@@ -31,6 +31,43 @@ class RealCheckoutRunner
 end
 
 RSpec.describe Atlas::DeploymentAutomation::DeploymentAutomationCommandRunner do
+  it "normalizes and redacts invalid stdout" do
+    configured_secret = "configured-secret-sentinel"
+    credential_secret = "credential-secret-sentinel"
+    runner = described_class.new(secret_values: [ configured_secret ])
+    output = runner.capture([
+      RbConfig.ruby,
+      "-e",
+      "STDOUT.binmode; payload = '#{configured_secret}'.b + [255].pack('C') + ' password=#{credential_secret}'.b; " \
+        "STDOUT.write(payload + ([255].pack('C') * (#{described_class::MAX_OUTPUT_BYTES} - payload.bytesize)))"
+    ])
+
+    expect(output.encoding).to eq(Encoding::UTF_8)
+    expect(output).to be_valid_encoding
+    expect(output).to include("[REDACTED]")
+    expect(output).not_to include(configured_secret, credential_secret)
+    expect(output.bytesize).to be <= described_class::MAX_OUTPUT_BYTES
+  end
+
+  it "reports invalid stderr with bounded, redacted command and exit context" do
+    configured_secret = "configured-secret-sentinel"
+    credential_secret = "credential-secret-sentinel"
+    runner = described_class.new(secret_values: [ configured_secret ])
+    command = [
+      RbConfig.ruby,
+      "-e",
+      "STDERR.binmode; STDERR.write('#{configured_secret}'.b + [255].pack('C') + ' token=#{credential_secret}'.b); exit 23"
+    ]
+
+    expect { runner.capture(command) }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message.encoding).to eq(Encoding::UTF_8)
+      expect(error.message).to be_valid_encoding
+      expect(error.message).to include("command failed (23)", File.basename(RbConfig.ruby), "[REDACTED]")
+      expect(error.message).not_to include(configured_secret, credential_secret)
+      expect(error.message.bytesize).to be < 40_000
+    end
+  end
+
   it "limits Git authentication to remote Git child commands" do
     runner = described_class.new(git_auth: "AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46dGVzdC10b2tlbg==")
 

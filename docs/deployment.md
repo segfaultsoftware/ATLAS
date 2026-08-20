@@ -325,11 +325,13 @@ bin/deploy fresh
 bin/verify-deployment
 ```
 
-`bin/deploy fresh` validates the Compose file, builds the `atlas` image, starts
-the service, runs `db:prepare`, runs `db:seed`, and verifies the running
-service. `db:prepare` creates or migrates the primary SQLite database in the
-persisted storage volume. Seeding creates the `index` Manual landing page when
-needed.
+`bin/deploy fresh` validates the Compose file, builds the `atlas` image, and
+runs `docker compose up --detach atlas`. `bin/docker-entrypoint` is the sole
+owner of the normal server-start path's `db:prepare`; it creates or migrates
+the primary SQLite database in persisted storage before starting Rails. The
+deployment workflow then waits for readiness, runs `db:seed`, and performs the
+final verification. A readiness failure stops the workflow before seed and
+verification. Seeding creates the `index` Manual landing page when needed.
 
 If the first command fails, do not continue to `up`. Resolve the Compose
 configuration or secret-file problem first. If the deployment command fails,
@@ -353,6 +355,22 @@ docker compose port atlas 80
 
 The final command should produce no published host port. An empty result is
 expected because Caddy reaches the service over the external `web` network.
+
+The verifier requires exactly one running `atlas` container for its immutable
+image lookup. For secret-hygiene verification, it internally runs
+`docker compose ps -q atlas`, resolves that container with
+`docker inspect --format "{{.Image}}" <container-id>`, checks the result with
+`docker history --no-trunc <immutable-image-id>`, and scans the last 1,000 log
+lines with `docker compose logs --no-color --tail 1000 atlas`.
+
+Run `bin/verify-deployment`; do not run those inspection commands individually
+or retain their raw output. Image history and container logs can expose
+credentials and build or runtime metadata. The verifier captures successful
+inspection output without printing it, checks image history before logs, and
+reports a failure without including the raw history or logs. Missing or
+ambiguous container or image identity makes verification fail rather than skip
+the check. An image name or checkout revision is not a substitute for the
+running container's immutable image identity.
 
 ## Initial staging bootstrap
 
@@ -496,6 +514,53 @@ revision can be rerun from GitHub. It will recognize that `staging` already
 names that revision and run the normal `bin/deploy update` path without moving
 the tag again.
 
+### Manual operator action: validate a pending migration in staging
+
+Before running a live command, confirm explicit authorization for the exact
+revision and non-production staging target, plus access to the isolated staging
+checkout, its Docker project, backup or restore point, and approved staging
+secret file. Do not use production, production storage, or the production
+container.
+
+If any prerequisite is unavailable, do not access the host or run the
+deployment. Record the intended revision, the missing prerequisite category,
+that no live validation command ran, and that the PR remains draft and blocked.
+Do not record operator identities, host inventory, secret paths or values,
+container or image identifiers, database contents, or raw logs. A local test is
+not a substitute for this staging gate.
+
+Only after the gate passes, use the normal deployment path from the isolated
+staging checkout:
+
+```sh
+cd /srv/apps/ATLAS-staging
+bin/deploy update
+```
+
+Do not run a separate `db:prepare` or `db:seed`; doing so would bypass the
+sequence being validated. Preserve sanitized non-secret pass or fail evidence
+in preparation, readiness, seed, runtime-image verification, and completion
+order:
+
+1. **Preparation:** record the approved revision, isolated staging checkout and
+   Compose project, backup or restore point, and the entrypoint-owned
+   `db:prepare` result for the pending migration without recording database
+   contents, raw command output, or secret values.
+2. **Readiness:** record that the replacement `atlas` container reached its
+   running and healthy state before any seed command ran.
+3. **Seed:** record the `db:seed` result after readiness completed.
+4. **Runtime-image verification:** record that the verifier resolved one
+   running container to one immutable image, checked its history, and then
+   checked the last 1,000 log lines without exposing raw output or identifiers.
+5. **Completion:** record the deployment result, endpoint checks, and unchanged
+   Manual landing-page marker for the tested staging revision.
+
+If the deployment fails or any required evidence cannot be sanitized, stop and
+keep the PR draft and blocked. Do not rerun individual preparation, seed,
+inspection, or verification steps to manufacture an ordered success record.
+This procedure defines the required validation gate; it does not claim that a
+staging rehearsal has been performed.
+
 ## Routine update, restart, and seed operations
 
 ### Repository command: update the application
@@ -506,8 +571,9 @@ After checking out the approved application revision, run:
 bin/deploy update
 ```
 
-This validates the Compose file, builds the image, replaces the service, runs
-database preparation and seeding, verifies the endpoints and secret handling,
+This validates the Compose file, builds the image, and replaces the service.
+The replacement container's entrypoint runs `db:prepare`; after readiness, the
+deployment workflow runs `db:seed`, verifies the endpoints and secret handling,
 and checks that the existing Manual landing-page marker did not unexpectedly
 change.
 
@@ -548,6 +614,12 @@ files, credential-like values, or unrestricted logs. An unexpected persistence
 marker change is also a deployment failure; stop and investigate the storage
 mount and database before retrying.
 
+Readiness and deployment-automation failure output is normalized to valid UTF-8
+before diagnostic redaction and bounding. The resulting diagnostics use
+configured line and byte limits. Raw subprocess output is sensitive even when
+a later diagnostic would redact known credentials, so do not preserve or share
+unrestricted output.
+
 ### Repository command: prepare and seed explicitly
 
 Use this when the application needs the database setup or seed operation
@@ -557,7 +629,8 @@ without a new image build:
 bin/deploy seed
 ```
 
-The command runs `db:prepare`, then `db:seed`, and verifies the service.
+Unlike the normal server-start path, standalone `bin/deploy seed` explicitly
+runs `db:prepare`, then `db:seed`, and verifies the service.
 
 ## Caddy and LAN access
 

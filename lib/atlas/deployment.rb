@@ -10,6 +10,17 @@ module Atlas
     COMPOSE = %w[docker compose].freeze
     class CommandError < StandardError; end
 
+    def self.normalize_utf8(value)
+      value.to_s.dup.force_encoding(Encoding::UTF_8).scrub
+    end
+
+    def self.bounded_utf8(value, max_bytes:, max_lines:)
+      line_bounded = normalize_utf8(value).lines.first(max_lines).join
+      return line_bounded if line_bounded.bytesize <= max_bytes
+
+      line_bounded.byteslice(0, max_bytes).force_encoding(Encoding::UTF_8).scrub("")
+    end
+
     class CommandRunner
       def run(command)
         puts "$ #{command.shelljoin}"
@@ -18,10 +29,13 @@ module Atlas
 
       def capture(command)
         stdout, stderr, status = Open3.capture3(*command)
+        stdout = Deployment.normalize_utf8(stdout)
+        stderr = Deployment.normalize_utf8(stderr)
         return stdout if status.success?
 
-        message = stderr.to_s.strip
-        raise CommandError, "command failed (#{status.exitstatus}): #{command.shelljoin}#{message.empty? ? "" : " — #{message}"}"
+        message = stderr.strip
+        command_context = Deployment.normalize_utf8(command.shelljoin)
+        raise CommandError, "command failed (#{status.exitstatus}): #{command_context}#{message.empty? ? "" : " — #{message}"}"
       end
 
       def capture_bounded(command, max_bytes:, max_lines:)
@@ -58,7 +72,8 @@ module Atlas
         return bounded_output(outputs.fetch(stdout), max_bytes:, max_lines:) if status.success?
 
         message = bounded_output(outputs.fetch(stderr), max_bytes:, max_lines:).strip
-        raise CommandError, "command failed (#{status.exitstatus}): #{command.shelljoin}#{message.empty? ? "" : " — #{message}"}"
+        command_context = Deployment.normalize_utf8(command.shelljoin)
+        raise CommandError, "command failed (#{status.exitstatus}): #{command_context}#{message.empty? ? "" : " — #{message}"}"
       ensure
         stdin.close unless stdin.nil? || stdin.closed?
         [ stdout, stderr ].compact.each { |stream| stream.close unless stream.closed? }
@@ -67,7 +82,7 @@ module Atlas
       private
 
       def bounded_output(value, max_bytes:, max_lines:)
-        value.to_s.lines.first(max_lines).join.byteslice(0, max_bytes).to_s.scrub
+        Deployment.bounded_utf8(value, max_bytes:, max_lines:)
       end
     end
 
@@ -89,7 +104,7 @@ module Atlas
       REDACTION = "[REDACTED]"
       SENSITIVE_KEY = /(?:rails[_ -]?master[_ -]?key|password|passwd|secret(?:[_ -]?key(?:[_ -]?base)?|[_ -]?base)?|token|api[_ -]?key|access[_ -]?key|private[_ -]?key|credential|authorization)/i
       SENSITIVE_BLOCK = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*[:=][ \t]*)(?<value>\|[ \t]*\r?\n(?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/im
-      SENSITIVE_ASSIGNMENT = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*[:=][ \t]*)(?<value>"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]\r\n]+)/im
+      SENSITIVE_ASSIGNMENT = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*\\?[:=][ \t]*)(?<value>"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]\r\n]+)/im
       BEARER_VALUE = /(?<prefix>\b(?:authorization|proxy-authorization)[ \t]*[:=][ \t]*Bearer[ \t]+)(?<value>[^\s\r\n]+)/i
       PEM_VALUE = /-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----/im
 
@@ -231,7 +246,7 @@ module Atlas
 
       def bounded_diagnostic(value, lines:, bytes:)
         sanitized = sanitize(value)
-        sanitized.lines.first(lines).join.byteslice(0, bytes).to_s.scrub
+        Deployment.bounded_utf8(sanitized, max_bytes: bytes, max_lines: lines)
       end
 
       def capture_bounded(command, lines:, bytes:)
@@ -243,7 +258,7 @@ module Atlas
       end
 
       def sanitize(value)
-        sanitized = value.to_s.dup
+        sanitized = Deployment.normalize_utf8(value)
         secret_values.each { |secret| sanitized.gsub!(secret, REDACTION) }
         sanitized.gsub!(PEM_VALUE, REDACTION)
         sanitized.gsub!(SENSITIVE_BLOCK) { "#{Regexp.last_match[:prefix]}#{REDACTION}" }
@@ -319,14 +334,56 @@ module Atlas
           raise CommandError, "tracked file contains the Rails master key: #{relative_path}"
         end
 
-        image = runner.capture(compose("images", "-q", SERVICE)).strip
-        return if image.empty?
-
-        history = runner.capture([ "docker", "history", "--no-trunc", image ])
-        raise CommandError, "Docker image history contains the Rails master key" if history.include?(secret_value)
+        image = runtime_image_id
+        history = capture_runtime_image_history(image)
+        if history.include?(secret_value)
+          raise CommandError, "Docker image history contains sensitive material (Rails master key)"
+        end
+        if credential_pattern?(history)
+          raise CommandError, "Docker image history contains sensitive material matching a credential pattern"
+        end
 
         logs = runner.capture(compose("logs", "--no-color", "--tail", "1000", SERVICE))
         raise CommandError, "container logs contain the Rails master key" if logs.include?(secret_value)
+      end
+
+      def runtime_image_id
+        container_ids = capture_running_container_ids
+        unless container_ids.one?
+          raise CommandError, "expected exactly one running #{SERVICE} container; found #{container_ids.length}"
+        end
+
+        image_ids = capture_container_image_ids(container_ids.first)
+        raise CommandError, "running #{SERVICE} container immutable image identity is empty" if image_ids.empty?
+        unless image_ids.one?
+          raise CommandError, "running #{SERVICE} container immutable image identity is ambiguous; found #{image_ids.length} values"
+        end
+
+        image_ids.first
+      end
+
+      def capture_running_container_ids
+        runner.capture(compose("ps", "-q", SERVICE)).lines.map(&:strip).reject(&:empty?)
+      rescue CommandError
+        raise CommandError, "could not resolve the running #{SERVICE} container with docker compose ps"
+      end
+
+      def capture_container_image_ids(container_id)
+        runner.capture([ "docker", "inspect", "--format", "{{.Image}}", container_id ]).lines.map(&:strip).reject(&:empty?)
+      rescue CommandError
+        raise CommandError, "could not inspect the running #{SERVICE} container image with docker inspect"
+      end
+
+      def capture_runtime_image_history(image_id)
+        runner.capture([ "docker", "history", "--no-trunc", image_id ])
+      rescue CommandError
+        raise CommandError, "could not inspect the running #{SERVICE} runtime image history with docker history"
+      end
+
+      def credential_pattern?(value)
+        value.match?(ReadinessWaiter::PEM_VALUE) ||
+          value.match?(ReadinessWaiter::BEARER_VALUE) ||
+          value.match?(ReadinessWaiter::SENSITIVE_ASSIGNMENT)
       end
 
       def verify_dockerignore
@@ -436,9 +493,8 @@ module Atlas
         compose("config", "--quiet")
         compose("build", SERVICE)
         compose("up", "--detach", SERVICE)
-        rails_task("db:prepare")
-        rails_task("db:seed")
         readiness_waiter.wait
+        rails_task("db:seed")
         verifier.verify
       end
 

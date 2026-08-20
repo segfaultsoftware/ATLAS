@@ -257,18 +257,7 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
     allow(runner).to receive(:capture).and_return("marker\n")
   end
 
-  it "builds locally, prepares and seeds explicitly for a fresh deployment" do
-    workflow.run("fresh")
-
-    expect(runner).to have_received(:run).with(%w[docker compose config --quiet])
-    expect(runner).to have_received(:run).with(%w[docker compose build atlas])
-    expect(runner).to have_received(:run).with(%w[docker compose up --detach atlas])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed])
-    expect(verifier).to have_received(:verify)
-  end
-
-  it "waits for readiness before verifying a fresh deployment" do
+  it "uses entrypoint preparation and waits for readiness before seeding and verifying a fresh deployment" do
     events = []
     allow(runner).to receive(:run) { |command| events << command }
     allow(readiness_waiter).to receive(:wait) { events << :readiness }
@@ -280,25 +269,13 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
       %w[docker compose config --quiet],
       %w[docker compose build atlas],
       %w[docker compose up --detach atlas],
-      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare],
-      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed],
       :readiness,
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed],
       :verify
     ])
   end
 
-  it "provides an update action with the same safe preparation sequence" do
-    workflow.run("update")
-
-    expect(runner).to have_received(:capture).twice
-    expect(runner).to have_received(:run).with(%w[docker compose config --quiet])
-    expect(runner).to have_received(:run).with(%w[docker compose build atlas])
-    expect(runner).to have_received(:run).with(%w[docker compose up --detach atlas])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare])
-    expect(runner).to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed])
-  end
-
-  it "waits for readiness before verifying an update" do
+  it "uses entrypoint preparation and waits for readiness before seeding and verifying an update" do
     events = []
     allow(runner).to receive(:run) { |command| events << command }
     allow(runner).to receive(:capture) { events << :capture; "marker\n" }
@@ -312,36 +289,45 @@ RSpec.describe Atlas::Deployment::DeployWorkflow do
       %w[docker compose config --quiet],
       %w[docker compose build atlas],
       %w[docker compose up --detach atlas],
-      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare],
-      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed],
       :readiness,
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed],
       :verify,
       :capture
     ])
   end
 
-  it "does not verify a fresh deployment when readiness fails" do
+  it "does not seed or verify a fresh deployment when readiness fails" do
     readiness_error = Atlas::Deployment::CommandError.new("Compose readiness failed: timed out")
     allow(readiness_waiter).to receive(:wait).and_raise(readiness_error)
 
     expect { workflow.run("fresh") }.to raise_error(readiness_error)
+    expect(runner).not_to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed])
     expect(verifier).not_to have_received(:verify)
   end
 
-  it "does not verify an update when readiness fails" do
+  it "does not seed or verify an update when readiness fails" do
     readiness_error = Atlas::Deployment::CommandError.new("Compose readiness failed: timed out")
     allow(readiness_waiter).to receive(:wait).and_raise(readiness_error)
 
     expect { workflow.run("update") }.to raise_error(readiness_error)
+    expect(runner).not_to have_received(:run).with(%w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed])
     expect(verifier).not_to have_received(:verify)
     expect(runner).to have_received(:capture).once
   end
 
-  it "leaves seed without a readiness wait" do
+  it "prepares explicitly before a standalone seed without waiting for readiness" do
+    events = []
+    allow(runner).to receive(:run) { |command| events << command }
+    allow(verifier).to receive(:verify) { events << :verify }
+
     workflow.run("seed")
 
+    expect(events).to eq([
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:prepare],
+      %w[docker compose exec --no-TTY atlas ./bin/docker-entrypoint ./bin/rails db:seed],
+      :verify
+    ])
     expect(readiness_waiter).not_to have_received(:wait)
-    expect(verifier).to have_received(:verify)
   end
 
   it "checks persistence across an explicit restart" do

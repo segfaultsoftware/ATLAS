@@ -436,9 +436,8 @@ module Atlas
         compose("config", "--quiet")
         compose("build", SERVICE)
         compose("up", "--detach", SERVICE)
-        rails_task("db:prepare")
-        rails_task("db:seed")
         readiness_waiter.wait
+        rails_task("db:seed")
         verifier.verify
       end
 

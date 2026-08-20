@@ -104,7 +104,7 @@ module Atlas
       REDACTION = "[REDACTED]"
       SENSITIVE_KEY = /(?:rails[_ -]?master[_ -]?key|password|passwd|secret(?:[_ -]?key(?:[_ -]?base)?|[_ -]?base)?|token|api[_ -]?key|access[_ -]?key|private[_ -]?key|credential|authorization)/i
       SENSITIVE_BLOCK = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*[:=][ \t]*)(?<value>\|[ \t]*\r?\n(?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/im
-      SENSITIVE_ASSIGNMENT = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*[:=][ \t]*)(?<value>"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]\r\n]+)/im
+      SENSITIVE_ASSIGNMENT = /(?<prefix>["']?#{SENSITIVE_KEY}["']?[ \t]*\\?[:=][ \t]*)(?<value>"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]\r\n]+)/im
       BEARER_VALUE = /(?<prefix>\b(?:authorization|proxy-authorization)[ \t]*[:=][ \t]*Bearer[ \t]+)(?<value>[^\s\r\n]+)/i
       PEM_VALUE = /-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----/im
 

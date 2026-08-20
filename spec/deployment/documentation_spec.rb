@@ -133,6 +133,52 @@ RSpec.describe "the deployment documentation contract" do
     expect(documentation).to match(/The automation\s+does not run `bin\/verify-deployment` a second time/)
   end
 
+  it "documents entrypoint-owned preparation and the readiness barrier" do
+    expect(documentation).to match(/`bin\/docker-entrypoint`.*sole.*normal server-start.*`db:prepare`/im)
+    expect(documentation).to match(/`docker compose up --detach atlas`.*readiness.*`db:seed`.*final verification/im)
+    expect(documentation).to match(/readiness failure.*stops.*before.*seed.*verification/im)
+    expect(documentation).to match(/`bin\/deploy seed`.*`db:prepare`.*`db:seed`/im)
+  end
+
+  it "documents fail-closed running-container image verification" do
+    expect(documentation).to include(
+      "docker compose ps -q atlas",
+      'docker inspect --format "{{.Image}}"',
+      "docker history --no-trunc",
+      "docker compose logs --no-color --tail 1000 atlas"
+    )
+    expect(documentation).to match(/exactly one running `atlas` container.*immutable image/im)
+    expect(documentation).to match(/image history.*before.*logs/im)
+    expect(documentation).to match(/missing or\s+ambiguous container or image identity.*fail rather than skip/im)
+    expect(documentation).to match(/internally runs.*do not run those inspection commands individually/im)
+    expect(documentation).to match(/captures successful.*without printing.*raw history or logs/im)
+  end
+
+  it "documents binary-safe bounded deployment diagnostics" do
+    expect(documentation).to match(/failure output.*normalized.*valid UTF-8.*before.*redaction.*bounding/im)
+    expect(documentation).to match(/diagnostics.*line and byte limits/im)
+    expect(documentation).to match(/raw (?:subprocess|deployment) output.*sensitive/im)
+  end
+
+  it "documents the authorized staging-safe pending-migration validation gate" do
+    staging_validation = documentation[
+      /^### Manual operator action: validate a pending migration in staging$.*?(?=^## |\z)/m
+    ]
+
+    expect(staging_validation).not_to be_nil
+    expect(staging_validation).to match(/pending migration.*explicit authorization.*access/im)
+    expect(staging_validation).to match(
+      /sanitized non-secret.*preparation.*readiness.*seed.*runtime-image verification.*completion/im
+    )
+    expect(staging_validation).to match(/before running a live command.*confirm explicit authorization/im)
+    expect(staging_validation).to match(/prerequisite is unavailable.*no live validation command ran.*PR remains draft and blocked/im)
+    expect(staging_validation).to match(%r{```sh\ncd /srv/apps/ATLAS-staging\nbin/deploy update\n```})
+    expect(staging_validation).to match(/do not run a separate `db:prepare` or `db:seed`/im)
+    expect(staging_validation).to match(/does not claim.*staging rehearsal has been performed/im)
+    expect(staging_validation).to match(/do not use production/im)
+    expect(staging_validation).to match(/evidence.*cannot be sanitized.*PR.*draft and blocked/im)
+  end
+
   it "keeps examples free of secrets, private keys, and literal network addresses" do
     expect(documentation).not_to match(/-----BEGIN [^-]*PRIVATE KEY-----/)
     expect(documentation).not_to match(/(?:RAILS_MASTER_KEY\s*=\s*(?!FILE=)|(?:password|token|api[_-]?key)\s*[:=]\s*\S+)/i)

@@ -272,6 +272,32 @@ RSpec.describe Atlas::Deployment::ReadinessWaiter do
       expect(error.message).to include("[REDACTED]")
     end
   end
+
+  it "normalizes invalid-byte command failures before redacting and bounding readiness diagnostics" do
+    master_key = "configured-secret-sentinel"
+    credential = "credential-secret-sentinel"
+    command = [
+      RbConfig.ruby,
+      "-e",
+      "STDERR.binmode; STDERR.write('#{master_key}'.b + [255].pack('C') + ' password=#{credential}'.b); exit 23"
+    ]
+    command_error = begin
+      Atlas::Deployment::CommandRunner.new.capture(command)
+    rescue Atlas::Deployment::CommandError => error
+      error
+    end
+    allow(runner).to receive(:capture).with(status_command).and_raise(command_error)
+    allow(runner).to receive(:capture).with(logs_command).and_return("logs\n")
+    waiter = described_class.new(runner:, timeout: 0, clock:, sleeper:, secret_values: [ master_key ])
+
+    expect { waiter.wait }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message.encoding).to eq(Encoding::UTF_8)
+      expect(error.message).to be_valid_encoding
+      expect(error.message).to include("command failed (23)", File.basename(RbConfig.ruby), "[REDACTED]")
+      expect(error.message).not_to include(master_key, credential)
+      expect(error.message.bytesize).to be <= described_class::MAX_FAILURE_BYTES
+    end
+  end
 end
 
 RSpec.describe Atlas::Deployment::DeployWorkflow do
@@ -559,10 +585,25 @@ RSpec.describe Atlas::Deployment::Verifier do
     expect(runner).not_to have_received(:capture).with(%w[docker compose images -q atlas])
   end
 
-  it "rejects a missing running atlas container without skipping secret checks" do
+  it "rejects a missing running atlas container instead of treating secret verification as successful" do
     allow(runner).to receive(:capture).with(%w[docker compose ps -q atlas]).and_return("")
 
     expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError, /exactly one running atlas container.*found 0/i)
+    expect(runner).not_to have_received(:capture).with(array_including("inspect"))
+    expect(runner).not_to have_received(:capture).with(array_including("history"))
+  end
+
+  it "reports a running-container lookup failure without exposing command diagnostics" do
+    allow(runner).to receive(:capture).with(%w[docker compose ps -q atlas]).and_raise(
+      Atlas::Deployment::CommandError,
+      "command failed (1): docker compose ps -q atlas — authorization=credential-value"
+    )
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to match(/could not resolve.*running atlas container/i)
+      expect(error.message).not_to include("credential-value")
+      expect(error.message.bytesize).to be < 256
+    end
     expect(runner).not_to have_received(:capture).with(array_including("inspect"))
     expect(runner).not_to have_received(:capture).with(array_including("history"))
   end
@@ -589,6 +630,21 @@ RSpec.describe Atlas::Deployment::Verifier do
     ).and_return("\n")
 
     expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError, /immutable image identity.*empty/i)
+    expect(runner).not_to have_received(:capture).with(array_including("history"))
+  end
+
+  it "rejects ambiguous immutable image identities without exposing them" do
+    first_image = "sha256:#{"a" * 64}"
+    second_image = "sha256:#{"b" * 64}"
+    allow(runner).to receive(:capture).with(
+      [ "docker", "inspect", "--format", "{{.Image}}", "atlas-container" ]
+    ).and_return("#{first_image}\n#{second_image}\n")
+
+    expect { verifier.verify }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message).to match(/immutable image identity.*ambiguous.*found 2/i)
+      expect(error.message).not_to include(first_image, second_image)
+      expect(error.message.bytesize).to be < 256
+    end
     expect(runner).not_to have_received(:capture).with(array_including("history"))
   end
 

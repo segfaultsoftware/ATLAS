@@ -25,6 +25,17 @@ RSpec.describe Profile, type: :model do
     expect(duplicate.errors.of_kind?(:user_id, :taken)).to be(true)
   end
 
+  it "owns games and destroys them with the profile" do
+    profile = FactoryBot.create(:profile)
+    game = FactoryBot.create(:game, profile: profile)
+
+    expect(profile.games).to contain_exactly(game)
+
+    profile.destroy!
+
+    expect(Game.exists?(game.id)).to be(false)
+  end
+
   it "allows blank preferred playtimes" do
     profile = FactoryBot.build(:profile, preferred_playtimes: "")
 

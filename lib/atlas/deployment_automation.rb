@@ -89,7 +89,7 @@ module Atlas
         status = wait_thread.value
         raise CommandError, "command output exceeded #{MAX_OUTPUT_BYTES} bytes: #{safe_command(command)}" if output_limit_exceeded
 
-        [ bounded_output(outputs.fetch(stdout)), bounded_output(outputs.fetch(stderr)), status ]
+        [ normalize_output(outputs.fetch(stdout)), normalize_output(outputs.fetch(stderr)), status ]
       ensure
         stdin.close unless stdin.nil? || stdin.closed?
         [ stdout, stderr ].compact.each { |stream| stream.close unless stream.closed? }
@@ -143,11 +143,15 @@ module Atlas
       end
 
       def bounded_output(value)
-        value.to_s.lines.first(MAX_OUTPUT_LINES).join.byteslice(0, MAX_OUTPUT_BYTES).to_s.scrub
+        Deployment.bounded_utf8(value, max_bytes: MAX_OUTPUT_BYTES, max_lines: MAX_OUTPUT_LINES)
+      end
+
+      def normalize_output(value)
+        Deployment.normalize_utf8(value)
       end
 
       def sanitize(value, preserve_git_object_ids: false)
-        sanitized = value.to_s.dup
+        sanitized = normalize_output(value)
         secret_values.each { |secret| sanitized.gsub!(secret, "[REDACTED]") }
         sanitized.gsub!(/(Bearer\s+)([^\s]+)/i, "\\1[REDACTED]")
         sanitized.gsub!(/((?:rails[_ -]?master[_ -]?key|password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)\s*[:=]\s*)("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/i, "\\1[REDACTED]")
@@ -155,7 +159,7 @@ module Atlas
         sanitized.gsub!(/(?<![A-Za-z0-9])[A-Za-z0-9+\/_-]{24,}={0,2}(?![A-Za-z0-9])/) do |value|
           preserve_git_object_ids && GIT_OBJECT_ID_PATTERN.match?(value) ? value : "[REDACTED]"
         end
-        sanitized.lines.first(MAX_OUTPUT_LINES).join.byteslice(0, MAX_OUTPUT_BYTES).to_s.scrub
+        bounded_output(sanitized)
       end
     end
 

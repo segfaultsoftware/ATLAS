@@ -10,6 +10,17 @@ module Atlas
     COMPOSE = %w[docker compose].freeze
     class CommandError < StandardError; end
 
+    def self.normalize_utf8(value)
+      value.to_s.dup.force_encoding(Encoding::UTF_8).scrub
+    end
+
+    def self.bounded_utf8(value, max_bytes:, max_lines:)
+      line_bounded = normalize_utf8(value).lines.first(max_lines).join
+      return line_bounded if line_bounded.bytesize <= max_bytes
+
+      line_bounded.byteslice(0, max_bytes).force_encoding(Encoding::UTF_8).scrub("")
+    end
+
     class CommandRunner
       def run(command)
         puts "$ #{command.shelljoin}"
@@ -18,10 +29,13 @@ module Atlas
 
       def capture(command)
         stdout, stderr, status = Open3.capture3(*command)
+        stdout = Deployment.normalize_utf8(stdout)
+        stderr = Deployment.normalize_utf8(stderr)
         return stdout if status.success?
 
-        message = stderr.to_s.strip
-        raise CommandError, "command failed (#{status.exitstatus}): #{command.shelljoin}#{message.empty? ? "" : " — #{message}"}"
+        message = stderr.strip
+        command_context = Deployment.normalize_utf8(command.shelljoin)
+        raise CommandError, "command failed (#{status.exitstatus}): #{command_context}#{message.empty? ? "" : " — #{message}"}"
       end
 
       def capture_bounded(command, max_bytes:, max_lines:)
@@ -58,7 +72,8 @@ module Atlas
         return bounded_output(outputs.fetch(stdout), max_bytes:, max_lines:) if status.success?
 
         message = bounded_output(outputs.fetch(stderr), max_bytes:, max_lines:).strip
-        raise CommandError, "command failed (#{status.exitstatus}): #{command.shelljoin}#{message.empty? ? "" : " — #{message}"}"
+        command_context = Deployment.normalize_utf8(command.shelljoin)
+        raise CommandError, "command failed (#{status.exitstatus}): #{command_context}#{message.empty? ? "" : " — #{message}"}"
       ensure
         stdin.close unless stdin.nil? || stdin.closed?
         [ stdout, stderr ].compact.each { |stream| stream.close unless stream.closed? }
@@ -67,7 +82,7 @@ module Atlas
       private
 
       def bounded_output(value, max_bytes:, max_lines:)
-        value.to_s.lines.first(max_lines).join.byteslice(0, max_bytes).to_s.scrub
+        Deployment.bounded_utf8(value, max_bytes:, max_lines:)
       end
     end
 
@@ -231,7 +246,7 @@ module Atlas
 
       def bounded_diagnostic(value, lines:, bytes:)
         sanitized = sanitize(value)
-        sanitized.lines.first(lines).join.byteslice(0, bytes).to_s.scrub
+        Deployment.bounded_utf8(sanitized, max_bytes: bytes, max_lines: lines)
       end
 
       def capture_bounded(command, lines:, bytes:)
@@ -243,7 +258,7 @@ module Atlas
       end
 
       def sanitize(value)
-        sanitized = value.to_s.dup
+        sanitized = Deployment.normalize_utf8(value)
         secret_values.each { |secret| sanitized.gsub!(secret, REDACTION) }
         sanitized.gsub!(PEM_VALUE, REDACTION)
         sanitized.gsub!(SENSITIVE_BLOCK) { "#{Regexp.last_match[:prefix]}#{REDACTION}" }

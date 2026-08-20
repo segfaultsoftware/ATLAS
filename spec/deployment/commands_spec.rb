@@ -6,6 +6,34 @@ require "tempfile"
 require_relative "../../lib/atlas/deployment"
 
 RSpec.describe Atlas::Deployment::CommandRunner do
+  it "normalizes invalid stdout to valid UTF-8" do
+    runner = described_class.new
+    output = runner.capture([
+      RbConfig.ruby,
+      "-e",
+      'STDOUT.binmode; STDOUT.write("stdout-before".b + [255].pack("C") + "stdout-after".b)'
+    ])
+
+    expect(output.encoding).to eq(Encoding::UTF_8)
+    expect(output).to be_valid_encoding
+    expect(output).to include("stdout-before", "stdout-after")
+  end
+
+  it "reports invalid stderr with valid UTF-8 command and exit context" do
+    runner = described_class.new
+    command = [
+      RbConfig.ruby,
+      "-e",
+      'STDERR.binmode; STDERR.write("stderr-before".b + [255].pack("C") + "stderr-after".b); exit 23'
+    ]
+
+    expect { runner.capture(command) }.to raise_error(Atlas::Deployment::CommandError) do |error|
+      expect(error.message.encoding).to eq(Encoding::UTF_8)
+      expect(error.message).to be_valid_encoding
+      expect(error.message).to include("command failed (23)", RbConfig.ruby, "stderr-before", "stderr-after")
+    end
+  end
+
   it "bounds stdout and stderr while draining the child process" do
     runner = described_class.new
     output = runner.capture_bounded(

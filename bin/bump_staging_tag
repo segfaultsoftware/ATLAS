@@ -6,6 +6,10 @@ git_auth = ENV.delete("GIT_CONFIG_VALUE_0")
 ENV.delete("GIT_CONFIG_COUNT")
 ENV.delete("GIT_CONFIG_KEY_0")
 
-require_relative "../lib/atlas/staging_tag_bumper"
+require_relative "../lib/atlas/tag_bumper"
 
-Atlas::StagingTagBumper.new(git_auth:).run
+Atlas::TagBumper.new(
+  tag_ref: Atlas::DeploymentAutomation::STAGING_REF,
+  target_label: "staging",
+  git_auth:
+).run

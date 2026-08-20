@@ -50,7 +50,7 @@ RSpec.describe Atlas::StagingTagBumper do
     expect(bumper.run).to eq(:updated)
     expect(runner).to have_received(:run).with(
       git_command(
-        "push", "origin", "HEAD:refs/tags/staging",
+        "push", "origin", "#{head_revision}:refs/tags/staging",
         "--force-with-lease=refs/tags/staging:#{previous_revision}"
       ),
       chdir: repository_root.to_s,
@@ -69,7 +69,7 @@ RSpec.describe Atlas::StagingTagBumper do
     expect(configured_bumper.run).to eq(:updated)
     expect(runner).to have_received(:run).with(
       git_command(
-        "push", "origin", "HEAD:refs/tags/staging",
+        "push", "origin", "#{head_revision}:refs/tags/staging",
         "--force-with-lease=refs/tags/staging:#{previous_revision}"
       ),
       chdir: repository_root.to_s,

@@ -37,7 +37,7 @@ module Atlas
 
       execute(
         git_command(
-          "push", remote, "HEAD:#{tag_ref}",
+          "push", remote, "#{expected_revision}:#{tag_ref}",
           "--force-with-lease=#{tag_ref}:#{expected_remote_revision}"
         )
       )

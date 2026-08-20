@@ -69,7 +69,7 @@ RSpec.describe Atlas::TagBumper do
     ).ordered
     expect(runner).to have_received(:run).with(
       git_command(
-        "push", "origin", "HEAD:refs/tags/staging",
+        "push", "origin", "#{head_revision}:refs/tags/staging",
         "--force-with-lease=refs/tags/staging:#{previous_revision}"
       ),
       chdir: repository_root.to_s,
@@ -95,7 +95,7 @@ RSpec.describe Atlas::TagBumper do
 
     expect(runner).to have_received(:run).with(
       git_command(
-        "push", "origin", "HEAD:refs/tags/staging",
+        "push", "origin", "#{head_revision}:refs/tags/staging",
         "--force-with-lease=refs/tags/staging:#{previous_revision}"
       ),
       chdir: repository_root.to_s,
@@ -119,7 +119,7 @@ RSpec.describe Atlas::TagBumper do
 
     expect(runner).to have_received(:run).with(
       git_command(
-        "push", "origin", "HEAD:refs/tags/staging",
+        "push", "origin", "#{head_revision}:refs/tags/staging",
         "--force-with-lease=refs/tags/staging:"
       ),
       chdir: repository_root.to_s,
@@ -141,7 +141,7 @@ RSpec.describe Atlas::TagBumper do
     expect(bumper.run).to eq(:updated)
     expect(runner).to have_received(:run).with(
       git_command(
-        "push", "origin", "HEAD:refs/tags/staging",
+        "push", "origin", "#{head_revision}:refs/tags/staging",
         "--force-with-lease=refs/tags/staging:#{previous_revision}"
       ),
       chdir: repository_root.to_s,
@@ -152,7 +152,7 @@ RSpec.describe Atlas::TagBumper do
   it "reports bounded, actionable diagnostics when the protected push is rejected" do
     allow(runner).to receive(:run).with(
       git_command(
-        "push", "origin", "HEAD:refs/tags/staging",
+        "push", "origin", "#{head_revision}:refs/tags/staging",
         "--force-with-lease=refs/tags/staging:#{previous_revision}"
       ),
       chdir: repository_root.to_s,
@@ -183,5 +183,18 @@ RSpec.describe Atlas::TagBumper do
     expect { bumper.run }.to raise_error(Atlas::Deployment::CommandError) do |error|
       expect(error.message).to include("expected #{head_revision}", "observed #{observed_revision}", "retry")
     end
+  end
+
+  it "pushes the resolved commit even if HEAD changes after resolution" do
+    changed_revision = "e" * 40
+    current_head = head_revision
+    allow(runner).to receive(:run) do |command, **_options|
+      current_head = changed_revision
+      expect(command).to include("#{head_revision}:refs/tags/staging")
+      expect(command).not_to include("HEAD:refs/tags/staging")
+    end
+
+    expect(bumper.run).to eq(:updated)
+    expect(current_head).to eq(changed_revision)
   end
 end

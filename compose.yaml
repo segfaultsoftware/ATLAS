@@ -1,5 +1,6 @@
 services:
   atlas:
+    container_name: ${ATLAS_CONTAINER_NAME:?ATLAS_CONTAINER_NAME must be set}
     build:
       context: .
     user: "0:0"

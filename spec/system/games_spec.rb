@@ -46,6 +46,14 @@ RSpec.describe "Games", type: :system, system: true do
     click_button "Create Game", match: :first
 
     name_input = find_field("Name")
+    submit_button = find('input[type="submit"][aria-label="Create Game"]')
+    input_rect = page.evaluate_script("arguments[0].getBoundingClientRect().toJSON()", name_input)
+    submit_rect = page.evaluate_script("arguments[0].getBoundingClientRect().toJSON()", submit_button)
+
+    expect(submit_button.value).to eq("↵")
+    expect(submit_rect.fetch("left")).to be >= input_rect.fetch("right")
+    expect(submit_rect.fetch("top")).to be_within(1).of(input_rect.fetch("top"))
+    expect(submit_rect.fetch("bottom")).to be_within(1).of(input_rect.fetch("bottom"))
     expect(name_input).to match_css(":focus")
     name_input.fill_in(with: "  New Voyage  ")
     name_input.send_keys(:enter)

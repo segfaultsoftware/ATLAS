@@ -1,0 +1,5 @@
+<article class="game-card">
+  <div class="game-card__name"><%= game.name %></div>
+  <div class="game-card__seed"><%= formatted_game_seed(game) %></div>
+  <%= button_to "Delete", game_path(game), method: :delete, class: "game-card__delete" %>
+</article>

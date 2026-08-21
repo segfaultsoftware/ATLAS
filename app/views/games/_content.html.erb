@@ -1,0 +1,12 @@
+<div id="games_content">
+  <div class="games-list">
+    <%= render partial: "game", collection: @games %>
+
+    <% if @game.errors.any? || @games.size < Game::MAX_GAMES_PER_PROFILE %>
+      <section class="game-creation">
+        <h2>Create Game</h2>
+        <%= render "form", game: @game %>
+      </section>
+    <% end %>
+  </div>
+</div>

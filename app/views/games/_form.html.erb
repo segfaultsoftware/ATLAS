@@ -1,0 +1,15 @@
+<%= form_with model: game, url: games_path, class: "game-form" do |form| %>
+  <% if game.errors.any? %>
+    <div class="game-form__errors" role="alert">
+      <ul>
+        <% game.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form.label :name %>
+  <%= form.text_field :name, maxlength: 64, required: true %>
+  <%= form.submit "Create Game" %>
+<% end %>

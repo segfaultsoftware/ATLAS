@@ -66,6 +66,7 @@ RSpec.describe "Header avatar menu", type: :request do
     trigger = menu.at_css("summary.account-menu__button")
     avatar = trigger.at_css(".header-avatar")
     menu_panel = menu.at_css('.account-menu__menu[role="menu"]')
+    games_link = menu_panel.at_css('a.account-menu__item[role="menuitem"][href="/games"]')
     profile_link = menu_panel.at_css('a.account-menu__item[role="menuitem"][href="/profile"]')
     logout_form = menu_panel.at_css('form.account-menu__form[action="/logout"][method="post"]')
     logout_button = logout_form.at_css('button.account-menu__item[role="menuitem"]')
@@ -76,7 +77,8 @@ RSpec.describe "Header avatar menu", type: :request do
     expect(trigger["aria-expanded"]).to eq("false")
     expect(trigger["data-account-menu-target"]).to eq("summary")
     expect(avatar.text).to include("😢")
-    expect(menu_panel.css('[role="menuitem"]').map(&:text).map(&:strip)).to contain_exactly("Profile", "Logout")
+    expect(menu_panel.css('[role="menuitem"]').map(&:text).map(&:strip)).to eq([ "Games", "Profile", "Logout" ])
+    expect(games_link.text.strip).to eq("Games")
     expect(profile_link.text.strip).to eq("Profile")
     expect(logout_form.at_css('input[name="_method"][value="delete"]')).to be_present
     expect(logout_button.text.strip).to eq("Logout")

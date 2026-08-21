@@ -1,0 +1,216 @@
+.games-page {
+  margin: 0 auto;
+  max-width: 64rem;
+  min-height: calc(100vh - 4.75rem);
+  padding: clamp(2rem, 6vw, 4rem) clamp(1rem, 4vw, 2rem);
+}
+
+.games-page h1 {
+  font-size: clamp(2.75rem, 8vw, 5rem);
+  line-height: 1;
+  margin: 0 0 2rem;
+}
+
+.games-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.game-card {
+  align-items: center;
+  background: #242424;
+  border: 1px solid rgba(245, 241, 232, 0.2);
+  border-radius: 0.5rem;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.game-card__load,
+.game-card__delete,
+.game-creation button,
+.game-form input,
+.game-delete-dialog button {
+  font: inherit;
+}
+
+.game-card__load {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: #f5d284;
+  cursor: pointer;
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 1rem 5rem 1rem 1rem;
+  text-align: left;
+  width: 100%;
+}
+
+.game-card__name {
+  color: #f5d284;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.game-card__seed {
+  color: #d9d2c0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.game-card__delete-form {
+  margin: 0;
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.game-card__delete,
+.game-creation__disclosure,
+.game-form input[type="submit"],
+.game-delete-dialog button {
+  appearance: none;
+  background: #e5b85b;
+  border: 1px solid rgba(229, 184, 91, 0.75);
+  border-radius: 0.375rem;
+  color: #191714;
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.game-card__delete {
+  min-width: 2.75rem;
+}
+
+.game-creation {
+  margin-top: 1.5rem;
+}
+
+.game-creation__disclosure {
+  background: transparent;
+  border-style: dashed;
+  color: #f5d284;
+  min-height: 5rem;
+  width: 100%;
+}
+
+.game-creation__panel {
+  background: #242424;
+  border: 1px solid rgba(245, 241, 232, 0.2);
+  border-radius: 0.5rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.game-creation__panel[hidden] {
+  display: none;
+}
+
+.game-creation__panel h2 {
+  margin-top: 0;
+}
+
+.game-form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+.game-form__controls {
+  align-items: stretch;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.game-form input[type="text"] {
+  background: #111;
+  border: 1px solid rgba(245, 241, 232, 0.42);
+  border-radius: 0.375rem;
+  color: #f4f4f4;
+  min-height: 2.75rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+}
+
+.game-form input[type="submit"] {
+  min-width: 2.75rem;
+}
+
+.game-form__errors {
+  color: #ffb5a4;
+}
+
+.games-page__status {
+  background: #f5f1e8;
+  border-left: 0.3rem solid #e5b85b;
+  border-radius: 0.375rem;
+  bottom: 1.25rem;
+  color: #191714;
+  margin: 0;
+  max-width: calc(100vw - 2rem);
+  min-height: 0;
+  overflow-wrap: anywhere;
+  padding: 0;
+  position: fixed;
+  right: 1.25rem;
+  z-index: 30;
+}
+
+.games-page__status:not(:empty) {
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.35);
+  padding: 0.75rem 1rem;
+}
+
+.game-delete-dialog {
+  background: #242424;
+  border: 1px solid rgba(245, 241, 232, 0.25);
+  border-radius: 0.5rem;
+  color: #f4f4f4;
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+}
+
+.game-delete-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.game-delete-dialog h2 {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+
+.game-delete-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.game-delete-dialog__confirm {
+  background: #f08a73;
+  border-color: #f08a73;
+}
+
+.game-card__load:focus-visible,
+.game-card__delete:focus-visible,
+.game-creation button:focus-visible,
+.game-form input:focus-visible,
+.game-delete-dialog button:focus-visible {
+  box-shadow: 0 0 0 3px #181818, 0 0 0 6px #f5d284;
+  outline: 2px solid transparent;
+}
+
+.game-card__load:focus-visible {
+  box-shadow: inset 0 0 0 3px #f5d284;
+  outline: none;
+}

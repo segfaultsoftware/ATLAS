@@ -47,6 +47,7 @@
           </summary>
 
           <div class="account-menu__menu" role="menu">
+            <%= link_to "Games", games_path, role: "menuitem", class: "account-menu__item" %>
             <%= link_to "Profile", profile_path, role: "menuitem", class: "account-menu__item" %>
             <%= button_to "Logout", logout_path, method: :delete, form: { class: "account-menu__form" }, role: "menuitem", class: "account-menu__item account-menu__item--button" %>
           </div>

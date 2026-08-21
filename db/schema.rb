@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_20_000000) do
   create_table "celestial_bodies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -27,6 +27,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_000100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["celestial_body_id"], name: "index_celestial_transits_on_celestial_body_id", unique: true
+  end
+
+  create_table "games", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", limit: 64, null: false
+    t.integer "profile_id", null: false
+    t.integer "randomization_seed", null: false
+    t.datetime "updated_at", null: false
+    t.index ["profile_id"], name: "index_games_on_profile_id"
+    t.check_constraint "name = trim(name) AND length(name) BETWEEN 1 AND 64", name: "games_name_is_trimmed_and_bounded"
+    t.check_constraint "randomization_seed BETWEEN 0 AND 4294967295", name: "games_randomization_seed_is_unsigned_32_bit"
   end
 
   create_table "manual_categories", force: :cascade do |t|
@@ -84,6 +95,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_000100) do
   end
 
   add_foreign_key "celestial_transits", "celestial_bodies"
+  add_foreign_key "games", "profiles"
   add_foreign_key "manual_page_categories", "manual_categories"
   add_foreign_key "manual_page_categories", "manual_pages"
   add_foreign_key "manual_pages", "manual_pages", column: "parent_id"

@@ -1,0 +1,18 @@
+<%= form_with model: game, url: games_path, class: "game-form", data: { action: "submit->games#validateCreation" }, html: { novalidate: true } do |form| %>
+  <% if game.errors.any? %>
+    <div class="game-form__errors" role="alert">
+      <ul>
+        <% game.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form.label :name %>
+  <div class="game-form__controls">
+    <%= form.text_field :name, aria: { describedby: "game-name-client-error" }, data: { games_target: "creationName", action: "input->games#clearCreationError" } %>
+    <%= form.submit "↵", aria: { label: "Create Game" } %>
+  </div>
+  <p id="game-name-client-error" class="game-form__errors" role="alert" hidden data-games-target="creationClientError"></p>
+<% end %>

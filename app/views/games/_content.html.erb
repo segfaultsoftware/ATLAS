@@ -1,0 +1,27 @@
+<div id="games_content">
+  <div class="games-list">
+    <%= render partial: "game", collection: @games %>
+  </div>
+
+  <% if @game.errors.any? || @games.size < Game::MAX_GAMES_PER_PROFILE %>
+    <section class="game-creation">
+      <% unless @game.errors.any? %>
+        <button
+          type="button"
+          class="game-creation__disclosure"
+          aria-controls="game-creation-panel"
+          aria-expanded="false"
+          data-action="games#openCreation"
+          data-games-target="creationDisclosure"
+        >
+          Create Game
+        </button>
+      <% end %>
+
+      <div id="game-creation-panel" class="game-creation__panel" data-games-target="creationPanel" <%= "hidden" unless @game.errors.any? %>>
+        <h2>Create Game</h2>
+        <%= render "form", game: @game %>
+      </div>
+    </section>
+  <% end %>
+</div>

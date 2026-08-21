@@ -7,6 +7,7 @@ class Profile < ApplicationRecord
   DEFAULT_AVATAR_KEY = "smile"
 
   belongs_to :user, inverse_of: :profile
+  has_many :games, dependent: :destroy, inverse_of: :profile
 
   before_validation :set_default_avatar_key
 

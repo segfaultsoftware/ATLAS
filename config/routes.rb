@@ -22,6 +22,7 @@ Rails.application.routes.draw do
       match :preview, on: :collection, via: [ :post, :patch ]
     end
   end
+  resources :games, only: [ :index, :create, :destroy ]
   resource :profile, only: [ :show, :edit, :update ]
   get "profiles/:id" => "profiles#show", as: :view_profile
   delete "logout" => "sessions#destroy", as: :logout

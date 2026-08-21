@@ -9,6 +9,31 @@ RSpec.describe Game, type: :model do
       expect(game).to be_valid
       expect(game.randomization_seed).to be_between(0, 4_294_967_295)
     end
+
+    it "owns one initialization and many Pawns that are deleted with it" do
+      game = FactoryBot.create(:game)
+      initialization = game.game_initialization
+      pawn = FactoryBot.create(:pawn, game: game)
+
+      expect(initialization).to be_persisted
+      expect(game.pawns).to contain_exactly(pawn)
+
+      expect do
+        game.destroy!
+      end.to change(GameInitialization, :count).by(-1)
+        .and change(Pawn, :count).by(-1)
+    end
+
+    it "cascades initialization and Pawn deletion at the database boundary" do
+      game = FactoryBot.create(:game)
+      initialization = game.game_initialization
+      pawn = FactoryBot.create(:pawn, game: game)
+
+      Game.where(id: game.id).delete_all
+
+      expect(GameInitialization.exists?(initialization.id)).to be(false)
+      expect(Pawn.exists?(pawn.id)).to be(false)
+    end
   end
 
   describe "name" do

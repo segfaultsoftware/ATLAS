@@ -87,11 +87,30 @@ RSpec.describe "Games", type: :request do
     expect do
       post "/games", params: { game: { name: "  Voyager  ", randomization_seed: 7 } }
     end.to change(profile.games, :count).by(1)
+      .and change(GameInitialization, :count).by(1)
 
     game = profile.games.order(:id).last
     expect(response).to redirect_to("/games")
     expect(game.name).to eq("Voyager")
     expect(game.randomization_seed).to eq(42)
+    expect(game.game_initialization).to be_persisted
+    expect(game.game_initialization.remaining_budget).to eq(5000)
+  end
+
+  it "rolls back the Game and returns a controlled failure when initialization is invalid" do
+    user = FactoryBot.create(:user)
+    profile = FactoryBot.create(:profile, user: user)
+    allow_any_instance_of(Game).to receive(:build_game_initialization).and_wrap_original do |build_initialization|
+      build_initialization.call.tap { |initialization| initialization.remaining_budget = -1 }
+    end
+    sign_in user
+
+    expect do
+      post "/games", params: { game: { name: "Voyager" } }
+    end.not_to change(profile.games, :count)
+    expect(GameInitialization.count).to eq(0)
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parsed_response.at_css('[role="alert"]')).to be_present
   end
 
   it "replaces Games content after Turbo create without a redirect" do

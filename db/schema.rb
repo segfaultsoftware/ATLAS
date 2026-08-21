@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_20_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_21_000000) do
   create_table "celestial_bodies", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -27,6 +27,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_000000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["celestial_body_id"], name: "index_celestial_transits_on_celestial_body_id", unique: true
+  end
+
+  create_table "game_initializations", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "game_id", null: false
+    t.integer "remaining_budget", default: 5000, null: false
+    t.datetime "updated_at", null: false
+    t.index ["game_id"], name: "index_game_initializations_on_game_id", unique: true
+    t.check_constraint "remaining_budget >= 0", name: "game_initializations_remaining_budget_is_nonnegative"
   end
 
   create_table "games", force: :cascade do |t|
@@ -69,6 +78,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_000000) do
     t.index ["slug"], name: "index_manual_pages_on_slug", unique: true
   end
 
+  create_table "pawns", force: :cascade do |t|
+    t.integer "born_on_turn", null: false
+    t.datetime "created_at", null: false
+    t.integer "current_health", null: false
+    t.integer "current_stamina", null: false
+    t.integer "current_vigor", null: false
+    t.string "first_name", limit: 18, null: false
+    t.integer "game_id", null: false
+    t.string "last_name", limit: 18
+    t.integer "max_health", null: false
+    t.integer "max_stamina", null: false
+    t.integer "max_vigor", null: false
+    t.string "nickname", limit: 18, null: false
+    t.datetime "updated_at", null: false
+    t.index ["game_id"], name: "index_pawns_on_game_id"
+    t.check_constraint "current_health > 0", name: "pawns_current_health_is_positive"
+    t.check_constraint "current_stamina > 0", name: "pawns_current_stamina_is_positive"
+    t.check_constraint "current_vigor > 0", name: "pawns_current_vigor_is_positive"
+    t.check_constraint "first_name = trim(first_name, char(9, 10, 11, 12, 13, 32)) AND length(first_name) BETWEEN 1 AND 18", name: "pawns_first_name_is_trimmed_and_bounded"
+    t.check_constraint "last_name IS NULL OR (last_name = trim(last_name, char(9, 10, 11, 12, 13, 32)) AND length(last_name) <= 18)", name: "pawns_last_name_is_trimmed_and_bounded"
+    t.check_constraint "max_health > 0", name: "pawns_max_health_is_positive"
+    t.check_constraint "max_stamina > 0", name: "pawns_max_stamina_is_positive"
+    t.check_constraint "max_vigor > 0", name: "pawns_max_vigor_is_positive"
+    t.check_constraint "nickname = trim(nickname, char(9, 10, 11, 12, 13, 32)) AND length(nickname) BETWEEN 1 AND 18", name: "pawns_nickname_is_trimmed_and_bounded"
+  end
+
   create_table "profiles", force: :cascade do |t|
     t.string "avatar_key"
     t.datetime "created_at", null: false
@@ -95,9 +130,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_000000) do
   end
 
   add_foreign_key "celestial_transits", "celestial_bodies"
+  add_foreign_key "game_initializations", "games", on_delete: :cascade
   add_foreign_key "games", "profiles"
   add_foreign_key "manual_page_categories", "manual_categories"
   add_foreign_key "manual_page_categories", "manual_pages"
   add_foreign_key "manual_pages", "manual_pages", column: "parent_id"
+  add_foreign_key "pawns", "games", on_delete: :cascade
   add_foreign_key "profiles", "users"
 end

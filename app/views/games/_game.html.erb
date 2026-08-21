@@ -1,5 +1,24 @@
 <article class="game-card">
-  <div class="game-card__name"><%= game.name %></div>
-  <div class="game-card__seed"><%= formatted_game_seed(game) %></div>
-  <%= button_to "Delete", game_path(game), method: :delete, class: "game-card__delete" %>
+  <button
+    type="button"
+    class="game-card__load"
+    aria-label="Load <%= game.name %>"
+    data-action="click->games#showLoadingToast"
+    data-game-name="<%= game.name %>"
+  >
+    <span class="game-card__name"><%= game.name %></span>
+    <span class="game-card__seed"><%= formatted_game_seed(game) %></span>
+  </button>
+  <%= form_with url: game_path(game), method: :delete, class: "game-card__delete-form" do %>
+    <button
+      type="submit"
+      class="game-card__delete"
+      aria-label="Delete <%= game.name %>"
+      data-action="click->games#requestDelete"
+      data-game-name="<%= game.name %>"
+    >
+      <span aria-hidden="true">&#128465;</span>
+      <span class="visually-hidden">Delete <%= game.name %></span>
+    </button>
+  <% end %>
 </article>

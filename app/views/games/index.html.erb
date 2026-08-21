@@ -1,5 +1,24 @@
-<main class="games-page">
+<main class="games-page" data-controller="games">
   <h1>Games</h1>
 
   <%= render "content" %>
+
+  <p class="games-page__status" role="status" aria-live="polite" data-games-target="status"></p>
+
+  <dialog
+    class="game-delete-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="game-delete-dialog-title"
+    aria-describedby="game-delete-dialog-description"
+    data-games-target="deleteDialog"
+    data-action="close->games#restoreDeleteFocus cancel->games#cancelDelete"
+  >
+    <h2 id="game-delete-dialog-title" data-games-target="deleteDialogTitle"></h2>
+    <p id="game-delete-dialog-description">This action cannot be undone.</p>
+    <div class="game-delete-dialog__actions">
+      <button type="button" autofocus data-action="games#cancelDelete">Cancel</button>
+      <button type="button" class="game-delete-dialog__confirm" data-action="games#confirmDelete">Delete</button>
+    </div>
+  </dialog>
 </main>

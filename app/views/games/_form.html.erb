@@ -1,4 +1,4 @@
-<%= form_with model: game, url: games_path, class: "game-form" do |form| %>
+<%= form_with model: game, url: games_path, class: "game-form", data: { action: "submit->games#validateCreation" }, html: { novalidate: true } do |form| %>
   <% if game.errors.any? %>
     <div class="game-form__errors" role="alert">
       <ul>
@@ -10,6 +10,7 @@
   <% end %>
 
   <%= form.label :name %>
-  <%= form.text_field :name, maxlength: 64, required: true %>
-  <%= form.submit "Create Game" %>
+  <%= form.text_field :name, aria: { describedby: "game-name-client-error" }, data: { games_target: "creationName", action: "input->games#clearCreationError" } %>
+  <p id="game-name-client-error" class="game-form__errors" role="alert" hidden data-games-target="creationClientError"></p>
+  <%= form.submit "→", aria: { label: "Create Game" } %>
 <% end %>

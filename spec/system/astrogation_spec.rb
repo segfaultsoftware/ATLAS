@@ -1,16 +1,17 @@
 require "rails_helper"
 require_relative "../support/system_testing"
+require_relative "../support/browser_system_testing"
 
 RSpec.describe "Astrogation", type: :system, system: true do
   before do
-    driven_by :selenium, using: :chrome, screen_size: AstrogationSystemTesting::SCREEN_SIZE,
+    driven_by :selenium, using: :chrome, screen_size: BrowserSystemTesting::SCREEN_SIZE,
       options: { name: :astrogation_headless_chrome } do |options|
-      AstrogationSystemTesting.configure_chrome_options(options)
+      BrowserSystemTesting.configure_chrome_options(options)
     end
   end
 
   before(:context) do
-    AstrogationSystemTesting.verify_browser!
+    BrowserSystemTesting.verify_browser!
   end
 
   it "loads publicly with the shared header and ship-centered visibility" do

@@ -14,7 +14,7 @@ RSpec.describe "Games", type: :request do
       .at_css('turbo-stream[action="replace"][target="games_content"]')
   end
 
-  it "exposes only index, create, and destroy routes" do
+  it "exposes Game collection mutations and initialization navigation without Game show or edit routes" do
     routes = Rails.application.routes
 
     expect(routes.recognize_path("/games", method: :get))
@@ -23,6 +23,8 @@ RSpec.describe "Games", type: :request do
       .to include(controller: "games", action: "create")
     expect(routes.recognize_path("/games/1", method: :delete))
       .to include(controller: "games", action: "destroy", id: "1")
+    expect(routes.recognize_path("/games/1/initialization", method: :get))
+      .to include(controller: "game_initializations", action: "show", game_id: "1")
     expect { routes.recognize_path("/games/1", method: :get) }
       .to raise_error(ActionController::RoutingError)
     expect { routes.recognize_path("/games/1/edit", method: :get) }
@@ -76,6 +78,8 @@ RSpec.describe "Games", type: :request do
     expect(games_content.text).not_to include(other_game.name)
     expect(games_content.text).to include("0x00000000")
     expect(games_content.text).to include("0xFFFFFFFF")
+    expect(games_content.at_css("a[aria-label='Load Current Newer']")["href"])
+      .to eq("/games/#{newer_game.id}/initialization")
   end
 
   it "creates a trimmed Game from HTML while keeping its seed server-owned" do
@@ -87,14 +91,38 @@ RSpec.describe "Games", type: :request do
     expect do
       post "/games", params: { game: { name: "  Voyager  ", randomization_seed: 7 } }
     end.to change(profile.games, :count).by(1)
+      .and change(GameInitialization, :count).by(1)
 
     game = profile.games.order(:id).last
-    expect(response).to redirect_to("/games")
+    expect(response).to redirect_to("/games/#{game.id}/initialization")
     expect(game.name).to eq("Voyager")
     expect(game.randomization_seed).to eq(42)
+    expect(game.game_initialization).to be_persisted
+    expect(game.game_initialization.remaining_budget).to eq(5000)
+
+    follow_redirect!
+    expect(parsed_response.at_css("[role='status'][aria-live='polite']").text)
+      .to include("Voyager", "created")
   end
 
-  it "replaces Games content after Turbo create without a redirect" do
+  it "rolls back the game and returns a controlled failure when initialization is invalid" do
+    user = FactoryBot.create(:user)
+    profile = FactoryBot.create(:profile, user: user)
+    allow_any_instance_of(Game).to receive(:build_game_initialization).and_wrap_original do |build_initialization|
+      build_initialization.call.tap { |initialization| initialization.remaining_budget = -1 }
+    end
+    sign_in user
+
+    expect do
+      post "/games", params: { game: { name: "Voyager" } }
+    end.to change(profile.games, :count).by(0)
+      .and change(GameInitialization, :count).by(0)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parsed_response.at_css('[role="alert"]')).to be_present
+  end
+
+  it "redirects Turbo creation to the initialized Game" do
     user = FactoryBot.create(:user)
     profile = FactoryBot.create(:profile, user: user)
     sign_in user
@@ -103,10 +131,9 @@ RSpec.describe "Games", type: :request do
       post "/games", params: { game: { name: "Voyager" } }, headers: turbo_stream_headers
     end.to change(profile.games, :count).by(1)
 
-    expect(response).to have_http_status(:ok)
-    expect(response.media_type).to eq("text/vnd.turbo-stream.html")
-    expect(turbo_replacement).to be_present
-    expect(turbo_replacement.text).to include("Voyager")
+    game = profile.games.order(:id).last
+    expect(response).to have_http_status(:see_other)
+    expect(response).to redirect_to("/games/#{game.id}/initialization")
   end
 
   it "returns retained inline create errors for HTML and Turbo requests" do

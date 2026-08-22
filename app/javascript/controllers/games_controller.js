@@ -7,8 +7,7 @@ export default class extends Controller {
     "creationName",
     "creationPanel",
     "deleteDialog",
-    "deleteDialogTitle",
-    "status"
+    "deleteDialogTitle"
   ]
 
   connect() {
@@ -27,11 +26,6 @@ export default class extends Controller {
     this.creationPanelTarget.hidden = false
     this.creationDisclosureTarget.setAttribute("aria-expanded", "true")
     this.creationNameTarget.focus()
-  }
-
-  showLoadingToast(event) {
-    const name = event.currentTarget.dataset.gameName
-    this.statusTarget.textContent = `Loading ${name}...`
   }
 
   validateCreation(event) {

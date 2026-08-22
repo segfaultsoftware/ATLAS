@@ -1,0 +1,24 @@
+<article id="<%= dom_id(pawn) %>" class="crew-card crew-card--hired">
+  <h2 class="crew-card__names">
+    <span><%= pawn.first_name %></span>
+    <span>“<%= pawn.nickname %>”</span>
+    <% if pawn.last_name.present? %>
+      <span><%= pawn.last_name %></span>
+    <% end %>
+  </h2>
+
+  <dl class="crew-card__stats">
+    <dt>Maximum Health</dt>
+    <dd><%= pawn.max_health %></dd>
+    <dt>Current Health</dt>
+    <dd><%= pawn.current_health %></dd>
+    <dt>Maximum Stamina</dt>
+    <dd><%= pawn.max_stamina %></dd>
+    <dt>Current Stamina</dt>
+    <dd><%= pawn.current_stamina %></dd>
+    <dt>Maximum Vigor</dt>
+    <dd><%= pawn.max_vigor %></dd>
+    <dt>Current Vigor</dt>
+    <dd><%= pawn.current_vigor %></dd>
+  </dl>
+</article>

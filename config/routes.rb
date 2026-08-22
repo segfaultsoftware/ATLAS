@@ -22,7 +22,9 @@ Rails.application.routes.draw do
       match :preview, on: :collection, via: [ :post, :patch ]
     end
   end
-  resources :games, only: [ :index, :create, :destroy ]
+  resources :games, only: [ :index, :create, :destroy ] do
+    resource :initialization, only: :show, controller: "game_initializations"
+  end
   resource :profile, only: [ :show, :edit, :update ]
   get "profiles/:id" => "profiles#show", as: :view_profile
   delete "logout" => "sessions#destroy", as: :logout

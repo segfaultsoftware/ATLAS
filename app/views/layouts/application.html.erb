@@ -26,6 +26,14 @@
   <body>
     <%= render "layouts/site_header" %>
 
+    <% flash.each do |type, message| %>
+      <p
+        class="site-notice site-notice--<%= type %>"
+        role="<%= type.to_s == "alert" ? "alert" : "status" %>"
+        aria-live="<%= type.to_s == "alert" ? "assertive" : "polite" %>"
+      ><%= message %></p>
+    <% end %>
+
     <%= yield %>
   </body>
 </html>

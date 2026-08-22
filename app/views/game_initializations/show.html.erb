@@ -1,0 +1,11 @@
+<main class="game-initialization-page">
+  <h1>Select Your Crew</h1>
+  <p class="game-initialization-page__budget">
+    Remaining budget:
+    <strong><%= @game_initialization.remaining_budget %></strong>
+  </p>
+
+  <section class="crew-grid" aria-label="Hired crew">
+    <%= render partial: "hired_pawn", collection: @pawns, as: :pawn %>
+  </section>
+</main>

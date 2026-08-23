@@ -24,6 +24,7 @@ Rails.application.routes.draw do
   end
   resources :games, only: [ :index, :create, :destroy ] do
     resource :initialization, only: :show, controller: "game_initializations"
+    resources :pawns, only: :create
   end
   resource :profile, only: [ :show, :edit, :update ]
   get "profiles/:id" => "profiles#show", as: :view_profile

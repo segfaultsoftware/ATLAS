@@ -5,7 +5,25 @@
     <strong><%= @game_initialization.remaining_budget %></strong>
   </p>
 
+  <% if @candidate&.errors&.any? %>
+    <section role="alert" aria-label="Candidate hiring error">
+      <p>Unable to hire candidate.</p>
+      <ul>
+        <% @candidate.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+      <p>
+        Submitted candidate:
+        <%= [@candidate_attributes["first_name"], @candidate_attributes["nickname"], @candidate_attributes["last_name"]].compact.join(" ") %>;
+        maximum Health <%= @candidate_attributes["max_health"] %>,
+        maximum Stamina <%= @candidate_attributes["max_stamina"] %>,
+        maximum Vigor <%= @candidate_attributes["max_vigor"] %>.
+      </p>
+    </section>
+  <% end %>
+
   <section class="crew-grid" aria-label="Hired crew">
-    <%= render partial: "hired_pawn", collection: @pawns, as: :pawn %>
+    <%= render partial: "game_initializations/hired_pawn", collection: @pawns, as: :pawn %>
   </section>
 </main>

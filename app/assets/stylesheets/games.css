@@ -232,6 +232,135 @@
   border: 2px solid #65a895;
 }
 
+.crew-card--candidate {
+  align-items: center;
+  background: #28231d;
+  border: 2px solid #e5b85b;
+  display: flex;
+  justify-content: center;
+}
+
+.crew-candidate {
+  display: grid;
+  gap: 1rem;
+  max-width: 24rem;
+  width: 100%;
+}
+
+.crew-candidate__names {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.crew-candidate__names label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.crew-candidate__names input {
+  background: #111;
+  border: 1px solid rgba(245, 241, 232, 0.42);
+  border-radius: 0.375rem;
+  color: #f4f4f4;
+  font: inherit;
+  min-height: 2.75rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+}
+
+.crew-candidate__age {
+  margin: 0;
+  text-align: center;
+}
+
+.crew-candidate__age output,
+.crew-candidate__stats output {
+  color: #f5d284;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.crew-candidate__stats {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.crew-candidate__stats > div {
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.crew-candidate__stats dt,
+.crew-candidate__stats dd {
+  margin: 0;
+}
+
+.crew-candidate__stats dd {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.crew-candidate__stats button,
+.crew-candidate__actions input,
+.crew-candidate__actions button {
+  appearance: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 2.75rem;
+}
+
+.crew-candidate__stats button {
+  background: #3a342a;
+  border-color: rgba(245, 210, 132, 0.5);
+  border-radius: 0.375rem;
+  color: #f5d284;
+  min-width: 2.75rem;
+}
+
+.crew-candidate__actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.crew-candidate__actions input,
+.crew-candidate__actions button {
+  border-radius: 999px;
+  color: #111;
+  padding: 0.55rem 1rem;
+}
+
+.crew-candidate__hire {
+  background: #73c995;
+  border-color: #73c995;
+}
+
+.crew-candidate__hire:disabled {
+  background: #777;
+  border-color: #777;
+  color: #d4d4d4;
+  cursor: not-allowed;
+}
+
+.crew-candidate__pass {
+  background: #f08a73;
+  border-color: #f08a73;
+}
+
+.crew-candidate__names input:focus-visible,
+.crew-candidate__stats button:focus-visible,
+.crew-candidate__actions input:focus-visible,
+.crew-candidate__actions button:focus-visible {
+  box-shadow: 0 0 0 3px #181818, 0 0 0 6px #f5d284;
+  outline: 2px solid transparent;
+}
+
 .crew-card__names {
   color: #f5d284;
   display: flex;

@@ -21,6 +21,35 @@ RSpec.describe "Game initializations", type: :request do
     expect(response.body).to include(initialization.remaining_budget.to_s)
   end
 
+  it "renders one server-backed default candidate with only the approved hiring inputs" do
+    user = FactoryBot.create(:user)
+    profile = FactoryBot.create(:profile, user: user)
+    game = FactoryBot.create(:game, profile: profile)
+    game.game_initialization.update!(remaining_budget: 4300)
+    sign_in user
+
+    get "/games/#{game.id}/initialization"
+
+    candidate = parsed_response.at_css(".crew-card--candidate")
+    expect(candidate).to be_present
+    expect(parsed_response.css(".crew-card--candidate").length).to eq(1)
+    expect(candidate.at_css("form") ["action"]).to eq("/games/#{game.id}/pawns")
+    expect(candidate.at_css("form") ["method"]).to eq("post")
+    expect(candidate.css("input[name^='pawn[']").map { |input| input["name"] }).to contain_exactly(
+      "pawn[first_name]",
+      "pawn[nickname]",
+      "pawn[last_name]",
+      "pawn[max_health]",
+      "pawn[max_stamina]",
+      "pawn[max_vigor]",
+      "pawn[starting_budget]"
+    )
+    expect(candidate.at_css("input[name='pawn[first_name]']") ["required"]).to eq("required")
+    expect(candidate.css("input[type='text']").map { |input| input["maxlength"] }).to all(eq("18"))
+    expect(candidate.at_css("input[name='pawn[starting_budget]']") ["value"]).to eq("4300")
+    expect(candidate.text.squish).to include("Current Age: 16.00", "Health 100", "Stamina 100", "Vigor 100")
+  end
+
   it "redirects anonymous requests to root" do
     game = FactoryBot.create(:game)
 

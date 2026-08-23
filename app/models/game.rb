@@ -3,9 +3,15 @@ class Game < ApplicationRecord
   RANDOMIZATION_SEED_UPPER_BOUND = 2**32
 
   belongs_to :profile, inverse_of: :games
+  has_one :game_initialization,
+          dependent: :destroy,
+          inverse_of: :game,
+          autosave: true
+  has_many :pawns, dependent: :destroy, inverse_of: :game
 
   attr_readonly :randomization_seed
 
+  before_validation :build_default_game_initialization, on: :create
   before_validation :normalize_name
   before_validation :set_randomization_seed, on: :create
 
@@ -19,6 +25,10 @@ class Game < ApplicationRecord
   validate :profile_has_capacity, on: :create
 
   private
+
+  def build_default_game_initialization
+    build_game_initialization unless game_initialization
+  end
 
   def normalize_name
     self.name = name&.strip

@@ -10,13 +10,9 @@ class GamesController < ApplicationController
     @game = @profile.games.build(game_params)
 
     if @game.save
-      load_games
-      @game = @profile.games.build
-
-      respond_to do |format|
-        format.html { redirect_to games_path, status: :see_other }
-        format.turbo_stream
-      end
+      redirect_to game_initialization_path(@game),
+                  notice: "#{@game.name} created successfully.",
+                  status: :see_other
     else
       load_games
 

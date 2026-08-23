@@ -9,6 +9,70 @@ RSpec.describe Game, type: :model do
       expect(game).to be_valid
       expect(game.randomization_seed).to be_between(0, 4_294_967_295)
     end
+
+    it "owns one initialization and many pawns that are deleted with it" do
+      game = FactoryBot.create(:game)
+      initialization = game.game_initialization
+      pawn = FactoryBot.create(:pawn, game: game)
+
+      expect(initialization).to be_persisted
+      expect(game.pawns).to contain_exactly(pawn)
+
+      expect do
+        game.destroy!
+      end.to change(GameInitialization, :count).by(-1)
+        .and change(Pawn, :count).by(-1)
+    end
+
+    it "cascades initialization and pawn deletion at the database boundary" do
+      game = FactoryBot.create(:game)
+      initialization = game.game_initialization
+      pawn = FactoryBot.create(:pawn, game: game)
+
+      Game.where(id: game.id).delete_all
+
+      expect(GameInitialization.exists?(initialization.id)).to be(false)
+      expect(Pawn.exists?(pawn.id)).to be(false)
+    end
+  end
+
+  describe "initialization" do
+    it "creates a persisted default initialization with an ordinary game" do
+      game = nil
+
+      expect do
+        game = FactoryBot.create(:game)
+      end.to change(described_class, :count).by(1)
+        .and change(GameInitialization, :count).by(1)
+
+      expect(game.game_initialization.remaining_budget).to eq(5000)
+    end
+
+
+    it "rolls back the game when its initialization is invalid" do
+      game = FactoryBot.build(:game)
+      game.build_game_initialization(remaining_budget: -1)
+      saved = nil
+
+      expect do
+        saved = game.save
+      end.to change(described_class, :count).by(0)
+        .and change(GameInitialization, :count).by(0)
+
+      expect(saved).to be(false)
+      expect(game.errors).to be_present
+    end
+
+    it "rolls back the game when initialization persistence aborts" do
+      game = FactoryBot.build(:game)
+      initialization = game.build_game_initialization
+      allow(initialization).to receive(:save).and_return(false)
+
+      expect do
+        expect(game.save).to be_falsey
+      end.to change(described_class, :count).by(0)
+        .and change(GameInitialization, :count).by(0)
+    end
   end
 
   describe "name" do
@@ -95,6 +159,12 @@ RSpec.describe Game, type: :model do
         insert_game!(profile_id: profile.id, name: "Minimum", randomization_seed: 0)
         insert_game!(profile_id: profile.id, name: "Maximum", randomization_seed: 4_294_967_295)
       end.to change(described_class, :count).by(2)
+    end
+
+    it "allows a direct legacy row to remain without an initialization" do
+      insert_game!(profile_id: profile.id, name: "Legacy", randomization_seed: 123)
+
+      expect(described_class.find_by!(name: "Legacy").game_initialization).to be_nil
     end
 
     it "rejects null and out-of-range seeds" do

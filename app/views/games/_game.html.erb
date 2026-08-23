@@ -1,14 +1,10 @@
 <article class="game-card">
-  <button
-    type="button"
-    class="game-card__load"
-    aria-label="Load <%= game.name %>"
-    data-action="click->games#showLoadingToast"
-    data-game-name="<%= game.name %>"
-  >
+  <%= link_to game_initialization_path(game),
+              class: "game-card__load",
+              aria: { label: "Load #{game.name}" } do %>
     <span class="game-card__name"><%= game.name %></span>
     <span class="game-card__seed"><%= formatted_game_seed(game) %></span>
-  </button>
+  <% end %>
   <%= form_with url: game_path(game), method: :delete, class: "game-card__delete-form" do %>
     <button
       type="submit"

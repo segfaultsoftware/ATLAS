@@ -1,0 +1,38 @@
+<% candidate_attributes = (@candidate_attributes || {}).stringify_keys %>
+<% candidate_starting_budget = candidate_attributes["starting_budget"].presence || @game_initialization.remaining_budget %>
+
+<main
+  class="game-initialization-page"
+  data-controller="crew-candidate"
+  data-crew-candidate-starting-budget-value="<%= candidate_starting_budget %>"
+  data-crew-candidate-persisted-budget-value="<%= @game_initialization.remaining_budget %>"
+>
+  <h1>Select Your Crew</h1>
+  <p class="game-initialization-page__budget">
+    Remaining budget:
+    <strong data-crew-candidate-target="budget"><%= @game_initialization.remaining_budget %></strong>
+  </p>
+
+  <% if @candidate&.errors&.any? %>
+    <section role="alert" aria-label="Candidate hiring error">
+      <p>Unable to hire candidate.</p>
+      <ul>
+        <% @candidate.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+      <p>
+        Submitted candidate:
+        <%= [@candidate_attributes["first_name"], @candidate_attributes["nickname"], @candidate_attributes["last_name"]].compact.join(" ") %>;
+        maximum Health <%= @candidate_attributes["max_health"] %>,
+        maximum Stamina <%= @candidate_attributes["max_stamina"] %>,
+        maximum Vigor <%= @candidate_attributes["max_vigor"] %>.
+      </p>
+    </section>
+  <% end %>
+
+  <section class="crew-grid" aria-label="Crew selection">
+    <%= render partial: "game_initializations/hired_pawn", collection: @pawns, as: :pawn %>
+    <%= render "game_initializations/candidate", candidate_attributes: candidate_attributes %>
+  </section>
+</main>

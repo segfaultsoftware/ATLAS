@@ -1,0 +1,96 @@
+<% max_health = candidate_attributes["max_health"].presence || CrewHiring::DEFAULT_STAT %>
+<% max_stamina = candidate_attributes["max_stamina"].presence || CrewHiring::DEFAULT_STAT %>
+<% max_vigor = candidate_attributes["max_vigor"].presence || CrewHiring::DEFAULT_STAT %>
+<% first_name = candidate_attributes["first_name"].to_s %>
+
+<article class="crew-card crew-card--candidate">
+  <%= form_with url: game_pawns_path(@game), scope: :pawn, class: "crew-candidate" do |form| %>
+    <div class="crew-candidate__names">
+      <%= form.label :first_name, "First Name" %>
+      <%= form.text_field :first_name,
+            value: first_name,
+            maxlength: 18,
+            required: true,
+            autocomplete: "off",
+            data: {
+              crew_candidate_target: "firstName",
+              action: "input->crew-candidate#updateNicknamePlaceholder"
+            } %>
+
+      <%= form.label :nickname, "Nickname" %>
+      <%= form.text_field :nickname,
+            value: candidate_attributes["nickname"],
+            maxlength: 18,
+            placeholder: first_name.strip,
+            autocomplete: "off",
+            data: { crew_candidate_target: "nickname" } %>
+
+      <%= form.label :last_name, "Last Name" %>
+      <%= form.text_field :last_name,
+            value: candidate_attributes["last_name"],
+            maxlength: 18,
+            autocomplete: "off",
+            data: { crew_candidate_target: "lastName" } %>
+    </div>
+
+    <p class="crew-candidate__age">
+      Current Age:
+      <output data-crew-candidate-target="age">16.00</output>
+    </p>
+
+    <dl class="crew-candidate__stats">
+      <div>
+        <dt>Health</dt>
+        <dd>
+          <output data-crew-candidate-target="healthOutput"><%= max_health %></output>
+          <button
+            type="button"
+            aria-label="Increase maximum Health"
+            data-stat="health"
+            data-action="crew-candidate#increase"
+          >➕</button>
+        </dd>
+      </div>
+      <div>
+        <dt>Stamina</dt>
+        <dd>
+          <output data-crew-candidate-target="staminaOutput"><%= max_stamina %></output>
+          <button
+            type="button"
+            aria-label="Increase maximum Stamina"
+            data-stat="stamina"
+            data-action="crew-candidate#increase"
+          >➕</button>
+        </dd>
+      </div>
+      <div>
+        <dt>Vigor</dt>
+        <dd>
+          <output data-crew-candidate-target="vigorOutput"><%= max_vigor %></output>
+          <button
+            type="button"
+            aria-label="Increase maximum Vigor"
+            data-stat="vigor"
+            data-action="crew-candidate#increase"
+          >➕</button>
+        </dd>
+      </div>
+    </dl>
+
+    <%= form.hidden_field :max_health, value: max_health, data: { crew_candidate_target: "healthInput" } %>
+    <%= form.hidden_field :max_stamina, value: max_stamina, data: { crew_candidate_target: "staminaInput" } %>
+    <%= form.hidden_field :max_vigor, value: max_vigor, data: { crew_candidate_target: "vigorInput" } %>
+    <%= form.hidden_field :starting_budget,
+          value: candidate_attributes["starting_budget"].presence || @game_initialization.remaining_budget,
+          data: { crew_candidate_target: "startingBudgetInput" } %>
+
+    <div class="crew-candidate__actions">
+      <%= form.submit "Hire", class: "crew-candidate__hire", data: { crew_candidate_target: "hire" } %>
+      <button
+        type="button"
+        class="crew-candidate__pass"
+        data-action="crew-candidate#pass"
+      >Pass</button>
+    </div>
+  <% end %>
+</article>

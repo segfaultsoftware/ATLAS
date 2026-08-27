@@ -5,18 +5,55 @@ RSpec.describe "Local authentication", type: :request do
 
   let(:password) { "password123" }
 
-  it "shows standard sign-in and sign-up pages" do
+  it "renders the sign-in form with scoped structure and preserved semantics" do
     get "/users/sign_in"
 
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include("Log in")
-    expect(response.body).to include("Remember me")
+    page = Nokogiri::HTML(response.body)
+    panel = page.at_css("main.page-shell.auth-page > div.auth-page__panel")
 
+    expect(panel).to be_present
+
+    form = panel.at_css('form.auth-form[action="/users/sign_in"][method="post"]')
+
+    expect(form).to be_present
+
+    expect(panel.at_css("h1.auth-page__heading")&.text).to eq("Log in")
+    expect(form.at_css('div.auth-form__field label[for="user_email"]')&.text).to eq("Email")
+    expect(form.at_css('input.auth-form__input[name="user[email]"][type="email"][autofocus][autocomplete="email"]')).to be_present
+    expect(form.at_css('div.auth-form__field label[for="user_password"]')&.text).to eq("Password")
+    expect(form.at_css('input.auth-form__input[name="user[password]"][type="password"][autocomplete="current-password"]')).to be_present
+    expect(form.at_css('div.auth-form__remember input.auth-form__checkbox[name="user[remember_me]"][type="checkbox"]')).to be_present
+    expect(form.at_css('div.auth-form__remember label[for="user_remember_me"]')&.text).to eq("Remember me")
+    expect(form.at_css('input.auth-form__submit[type="submit"][value="Log in"]')).to be_present
+    expect(panel.at_css('p.auth-page__alternate a.auth-page__link[href="/users/sign_up"]')&.text).to eq("Sign up")
+  end
+
+  it "renders the sign-up form with scoped structure and preserved semantics" do
     get "/users/sign_up"
 
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include("Sign up")
-    expect(response.body).to include("Preferred name")
+    page = Nokogiri::HTML(response.body)
+    panel = page.at_css("main.page-shell.auth-page > div.auth-page__panel")
+
+    expect(panel).to be_present
+
+    form = panel.at_css('form.auth-form[action="/users"][method="post"]')
+
+    expect(form).to be_present
+
+    expect(panel.at_css("h1.auth-page__heading")&.text).to eq("Sign up")
+    expect(form.at_css('div.auth-form__field label[for="user_email"]')&.text).to eq("Email")
+    expect(form.at_css('input.auth-form__input[name="user[email]"][type="email"][autofocus][autocomplete="email"]')).to be_present
+    expect(form.at_css('div.auth-form__field label[for="user_password"]')&.text).to eq("Password")
+    expect(form.at_css('input.auth-form__input[name="user[password]"][type="password"][autocomplete="new-password"]')).to be_present
+    expect(form.at_css("small.auth-form__hint")&.text).to include("characters minimum")
+    expect(form.at_css('div.auth-form__field label[for="user_password_confirmation"]')&.text).to eq("Password confirmation")
+    expect(form.at_css('input.auth-form__input[name="user[password_confirmation]"][type="password"][autocomplete="new-password"]')).to be_present
+    expect(form.at_css('div.auth-form__field label[for="user_preferred_name"]')&.text).to eq("Preferred name")
+    expect(form.at_css('input.auth-form__input[name="user[preferred_name]"][type="text"][autocomplete="name"]')).to be_present
+    expect(form.at_css('input.auth-form__submit[type="submit"][value="Sign up"]')).to be_present
+    expect(panel.at_css('p.auth-page__alternate a.auth-page__link[href="/users/sign_in"]')&.text).to eq("Log in")
   end
 
   it "creates one user and profile with a normalized email and secure password" do
@@ -58,8 +95,14 @@ RSpec.describe "Local authentication", type: :request do
     expect(Profile.count).to eq(0)
     expect(response).to have_http_status(:unprocessable_entity)
     page = Nokogiri::HTML(response.body)
-    expect(page.text).to include("Password confirmation doesn't match Password")
-    expect(page.text).to include("Preferred name can't be blank")
+    errors = page.at_css('div#error_explanation.auth-errors[role="alert"]')
+
+    expect(errors).to be_present
+
+    expect(errors.at_css("h2.auth-errors__heading")&.text).to include("prevented this account from being saved")
+    messages = errors.css("ul.auth-errors__list > li").map { |item| item.text.strip }
+    expect(messages).to include("Password confirmation doesn't match Password")
+    expect(messages).to include("Preferred name can't be blank")
   end
 
   it "rejects malformed email and short passwords without persisting anything" do

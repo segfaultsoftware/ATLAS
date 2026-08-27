@@ -5,7 +5,6 @@ RSpec.describe Profile, type: :model do
     profile = FactoryBot.build(:profile)
 
     expect(profile).to be_valid
-    expect(profile).to respond_to(:preferred_name)
     expect(profile).to respond_to(:pronouns)
     expect(profile).to respond_to(:preferred_playtimes)
     expect(profile).to respond_to(:avatar_key)
@@ -17,8 +16,8 @@ RSpec.describe Profile, type: :model do
   it "belongs to one auth user and lets each auth user own one profile" do
     user = FactoryBot.create(:user)
 
-    profile = FactoryBot.create(:profile, user: user, preferred_name: "Pilot")
-    duplicate = FactoryBot.build(:profile, user: user, preferred_name: "Navigator")
+    profile = FactoryBot.create(:profile, user: user)
+    duplicate = FactoryBot.build(:profile, user: user)
 
     expect(user.reload.profile).to eq(profile)
     expect(duplicate).not_to be_valid

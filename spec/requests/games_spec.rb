@@ -57,7 +57,7 @@ RSpec.describe "Games", type: :request do
     end.to change(Profile, :count).by(1)
 
     expect(response).to have_http_status(:ok)
-    expect(user.reload.profile.preferred_name).to eq("Atlas Player")
+    expect(user.reload.profile).to be_persisted
     expect(parsed_response.at_css("#games_content")).to be_present
   end
 

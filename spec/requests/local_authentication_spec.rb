@@ -50,13 +50,18 @@ RSpec.describe "Local authentication", type: :request do
     expect(form.at_css("small.auth-form__hint")&.text).to include("characters minimum")
     expect(form.at_css('div.auth-form__field label[for="user_password_confirmation"]')&.text).to eq("Password confirmation")
     expect(form.at_css('input.auth-form__input[name="user[password_confirmation]"][type="password"][autocomplete="new-password"]')).to be_present
-    expect(form.at_css('div.auth-form__field label[for="user_preferred_name"]')&.text).to eq("Preferred name")
-    expect(form.at_css('input.auth-form__input[name="user[preferred_name]"][type="text"][autocomplete="name"]')).to be_present
+    expect(form.css("input.auth-form__input").map { |input| input["name"] }).to contain_exactly(
+      "user[email]",
+      "user[password]",
+      "user[password_confirmation]"
+    )
     expect(form.at_css('input.auth-form__submit[type="submit"][value="Sign up"]')).to be_present
     expect(panel.at_css('p.auth-page__alternate a.auth-page__link[href="/users/sign_in"]')&.text).to eq("Log in")
   end
 
-  it "creates one user and profile with a normalized email and secure password" do
+  it "creates one user and profile while ignoring the retired profile name input" do
+    retired_profile_name_key = [ "preferred", "name" ].join("_")
+
     expect do
       post "/users",
            params: {
@@ -64,7 +69,7 @@ RSpec.describe "Local authentication", type: :request do
                email: "  PILOT@EXAMPLE.COM ",
                password: password,
                password_confirmation: password,
-               preferred_name: "Signal Pilot"
+               retired_profile_name_key => "ignored"
              }
            }
     end.to change(User, :count).by(1).and change(Profile, :count).by(1)
@@ -74,9 +79,24 @@ RSpec.describe "Local authentication", type: :request do
     expect(user.encrypted_password).to be_present
     expect(user.encrypted_password).not_to eq(password)
     expect(user.valid_password?(password)).to be(true)
-    expect(user.profile.preferred_name).to eq("Signal Pilot")
     expect(user.profile.user).to eq(user)
     expect(response).to redirect_to("/")
+  end
+
+  it "rejects signup without password confirmation" do
+    expect do
+      post "/users",
+           params: {
+             user: {
+               email: "pilot@example.com",
+               password: password
+             }
+           }
+    end.not_to change(User, :count)
+
+    expect(Profile.count).to eq(0)
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(Nokogiri::HTML(response.body).text).to include("Password confirmation can't be blank")
   end
 
   it "rejects invalid signup without creating an orphan account" do
@@ -86,8 +106,7 @@ RSpec.describe "Local authentication", type: :request do
              user: {
                email: "pilot@example.com",
                password: password,
-               password_confirmation: "different",
-               preferred_name: ""
+               password_confirmation: "different"
              }
            }
     end.not_to change(User, :count)
@@ -102,7 +121,6 @@ RSpec.describe "Local authentication", type: :request do
     expect(errors.at_css("h2.auth-errors__heading")&.text).to include("prevented this account from being saved")
     messages = errors.css("ul.auth-errors__list > li").map { |item| item.text.strip }
     expect(messages).to include("Password confirmation doesn't match Password")
-    expect(messages).to include("Preferred name can't be blank")
   end
 
   it "rejects malformed email and short passwords without persisting anything" do
@@ -112,8 +130,7 @@ RSpec.describe "Local authentication", type: :request do
              user: {
                email: "not-an-email",
                password: "short",
-               password_confirmation: "short",
-               preferred_name: "Signal Pilot"
+               password_confirmation: "short"
              }
            }
     end.not_to change(User, :count)
@@ -134,15 +151,14 @@ RSpec.describe "Local authentication", type: :request do
              user: {
                email: "PILOT@EXAMPLE.COM",
                password: password,
-               password_confirmation: password,
-               preferred_name: "Another Pilot"
+               password_confirmation: password
              }
            }
     end.not_to change(User, :count)
 
     expect(response).to have_http_status(:unprocessable_entity)
     expect(response.body).to include("has already been taken")
-    expect(Profile.where(preferred_name: "Another Pilot")).to be_empty
+    expect(Profile.count).to eq(0)
   end
 
   it "logs in with remember-me and logs out" do

@@ -28,12 +28,11 @@ RSpec.describe RemoveGoogleOauthAndResetUsers, type: :migration do
     connection.add_index :users, [ :provider, :uid ], unique: true, name: "index_users_on_provider_and_uid"
     connection.create_table(:profiles) do |table|
       table.references :user, null: false
-      table.string :preferred_name
       table.timestamps
     end
     connection.add_foreign_key :profiles, :users
     connection.execute("INSERT INTO users (provider, uid, email, encrypted_password, created_at, updated_at) VALUES ('google_oauth2', 'legacy-1', 'legacy@example.com', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
-    connection.execute("INSERT INTO profiles (user_id, preferred_name, created_at, updated_at) VALUES (1, 'Legacy Pilot', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+    connection.execute("INSERT INTO profiles (user_id, created_at, updated_at) VALUES (1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
   end
 
   it "deletes profiles before users and removes the OAuth schema" do

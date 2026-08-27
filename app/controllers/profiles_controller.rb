@@ -29,10 +29,10 @@ class ProfilesController < ApplicationController
   end
 
   def ensure_current_profile
-    current_user.profile || current_user.ensure_profile!(preferred_name: current_user.name)
+    current_user.profile || current_user.ensure_profile!
   end
 
   def profile_params
-    params.require(:profile).permit(:preferred_name, :pronouns, :preferred_playtimes, :avatar_key)
+    params.require(:profile).permit(:pronouns, :preferred_playtimes, :avatar_key)
   end
 end

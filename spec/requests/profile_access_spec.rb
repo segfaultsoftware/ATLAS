@@ -32,7 +32,7 @@ RSpec.describe "Profile access", type: :request do
   end
 
   it "blocks anonymous profile record access and stores the intended destination for login" do
-    profile = FactoryBot.create(:profile, preferred_name: "Other Pilot")
+    profile = FactoryBot.create(:profile, pronouns: "xe/xem")
 
     get "/profiles/#{profile.id}"
 
@@ -47,12 +47,12 @@ RSpec.describe "Profile access", type: :request do
     expect(response).to redirect_to("/profiles/#{profile.id}")
     follow_redirect!
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include("Other Pilot")
+    expect(response.body).to include("xe/xem")
   end
 
   it "allows authenticated users to view their own read-only profile data" do
     user = FactoryBot.create(:user)
-    profile = FactoryBot.create(:profile, user: user, preferred_name: "Atlas Player")
+    profile = FactoryBot.create(:profile, user: user)
     complete_local_login(user)
     profile.update!(
       pronouns: "they/them",
@@ -64,18 +64,33 @@ RSpec.describe "Profile access", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("Your profile")
-    expect(response.body).to include("Atlas Player")
     expect(response.body).to include("they/them")
     expect(response.body).to include("Weeknights after 7")
     expect(response.body).to include("smile")
     profile_page = Nokogiri::HTML(response.body).at_css(".profile-page")
+    expect(profile_page.css("dt").map { |term| term.text.strip }).to contain_exactly(
+      "Pronouns",
+      "Preferred playtimes",
+      "Avatar"
+    )
     expect(profile_page.css("input, textarea, select")).to be_empty
+  end
+
+  it "lazily creates the current user's profile" do
+    user = FactoryBot.create(:user)
+    complete_local_login(user)
+
+    expect do
+      get "/profile"
+    end.to change(Profile, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.profile).to be_persisted
   end
 
   it "allows authenticated users to view another user's profile" do
     other_profile = FactoryBot.create(
       :profile,
-      preferred_name: "Signal Weaver",
       pronouns: "she/her",
       preferred_playtimes: "Sundays",
       avatar_key: "frown"
@@ -87,7 +102,6 @@ RSpec.describe "Profile access", type: :request do
     get "/profiles/#{other_profile.id}"
 
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include("Signal Weaver")
     expect(response.body).to include("she/her")
     expect(response.body).to include("Sundays")
     expect(response.body).to include("frown")

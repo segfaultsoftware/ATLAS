@@ -146,7 +146,6 @@ RSpec.describe "Header avatar menu", type: :request do
     patch "/profile",
           params: {
             profile: {
-              preferred_name: "Signal Pilot",
               pronouns: "they/them",
               preferred_playtimes: "Weeknights",
               avatar_key: "frown"

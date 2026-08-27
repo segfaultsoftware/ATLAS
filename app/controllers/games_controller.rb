@@ -37,7 +37,7 @@ class GamesController < ApplicationController
   private
 
   def ensure_current_profile
-    @profile = current_user.profile || current_user.ensure_profile!(preferred_name: current_user.name)
+    @profile = current_user.profile || current_user.ensure_profile!
   end
 
   def load_games

@@ -45,7 +45,7 @@ RSpec.describe User, type: :model do
 
   it "does not persist a user when its profile fails validation" do
     user = FactoryBot.build(:user)
-    user.build_profile(preferred_name: user.preferred_name, avatar_key: "invalid")
+    user.build_profile(avatar_key: "invalid")
 
     expect do
       expect(user).not_to be_valid
@@ -53,13 +53,13 @@ RSpec.describe User, type: :model do
     end.not_to change(described_class, :count)
 
     expect(user).not_to be_persisted
-    expect(Profile.where(preferred_name: user.preferred_name)).to be_empty
+    expect(user.profile).not_to be_persisted
   end
 
   it "owns one app-facing profile" do
     user = FactoryBot.create(:user)
 
-    profile = user.create_profile!(preferred_name: "Pilot")
+    profile = user.create_profile!
 
     expect(user.profile).to eq(profile)
     expect(profile.user).to eq(user)

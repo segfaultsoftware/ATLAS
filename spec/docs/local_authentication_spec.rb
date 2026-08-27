@@ -8,6 +8,12 @@ RSpec.describe "Local authentication rollout documentation" do
     expect(readme).not_to include("existing Google-authenticated user")
   end
 
+  it "documents the complete signup field contract" do
+    requirements = Rails.root.join("docs/development/requirements.md").read
+
+    expect(requirements).to include("using only her email, password, and password confirmation")
+  end
+
   it "documents the destructive reset and deployment implications" do
     deployment = Rails.root.join("docs/deployment.md").read
 

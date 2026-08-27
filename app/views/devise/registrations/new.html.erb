@@ -23,11 +23,6 @@
         <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "auth-form__input" %>
       </div>
 
-      <div class="auth-form__field">
-        <%= f.label :preferred_name, "Preferred name" %><br>
-        <%= f.text_field :preferred_name, autocomplete: "name", class: "auth-form__input" %>
-      </div>
-
       <%= f.submit "Sign up", class: "auth-form__submit" %>
     <% end %>
 

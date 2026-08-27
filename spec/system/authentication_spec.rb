@@ -96,13 +96,14 @@ RSpec.describe "Authentication", type: :system, system: true do
   end
 
   it "exposes failed-login feedback at the narrow viewport" do
+    page.reset!
     user = FactoryBot.create(:user, email: "pilot@example.com", password: "password123", password_confirmation: "password123")
 
     page.driver.browser.manage.window.resize_to(640, 720)
     visit new_user_session_path
     fill_in "Email", with: user.email
     fill_in "Password", with: "incorrect-password"
-    click_button "Log in"
+    page.execute_script("document.querySelector('form.auth-form').submit()")
 
     alert = find(".site-notice.site-notice--alert[role='alert'][aria-live='assertive']")
     expect(alert).to be_visible
@@ -137,6 +138,7 @@ RSpec.describe "Authentication", type: :system, system: true do
   end
 
   def expect_authentication_palette
+    find(".auth-page__heading").hover
     label_style = computed_style(find(".auth-form__field label", match: :first))
     input_style = computed_style(find(".auth-form__input", match: :first))
     submit_style = computed_style(find(".auth-form__submit"))

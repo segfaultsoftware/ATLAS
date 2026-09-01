@@ -74,6 +74,6 @@ end
 
 gem "rspec-rails", "~> 8.0", groups: [ :development, :test ]
 
-gem "commonmarker", "~> 2.9"
+gem "commonmarker", "~> 2.10"
 
 gem "devise", "~> 5.0"
